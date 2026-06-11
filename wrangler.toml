@@ -1,6 +1,7 @@
 name = "splash-arena"
 main = "worker/index.ts"
 compatibility_date = "2026-01-01"
+account_id = "21e54ab80500ec6f34785e4e17fb40be"
 
 # 정적 게임 빌드 (Workers + Static Assets)
 [assets]
@@ -14,7 +15,7 @@ run_worker_first = ["/api/*", "/ws/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "splash-arena"
-database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+database_id = "c3c8b5e6-cbe4-4b10-8e0a-27dfcf13da7c"
 migrations_dir = "migrations"
 
 # 방 시스템 (방 1개 = RoomDO 1개, 목록 = LobbyDO 싱글톤)
