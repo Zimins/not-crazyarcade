@@ -1,0 +1,407 @@
+/* Splash Arena — 전역 스타일 */
+
+:root {
+  --bg: #14102a;
+  --bg-panel: #221c44;
+  --bg-panel-2: #2c2456;
+  --line: #4a3f86;
+  --text: #f0ecff;
+  --text-dim: #a79ed4;
+  --accent: #2e9df0;
+  --accent-2: #ffd23f;
+  --danger: #e84855;
+  --ok: #5cba47;
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Galmuri11", "DotGothic16", monospace;
+  image-rendering: pixelated;
+  overflow: hidden;
+  user-select: none;
+}
+
+#app {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+button {
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 22px;
+  cursor: pointer;
+  transition: transform 0.06s ease-out;
+}
+
+button:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(1px);
+}
+
+button.primary {
+  background: var(--accent);
+  border-color: #7fd4ff;
+  color: #08233f;
+  font-weight: 700;
+}
+
+button.primary:hover {
+  background: #4db1f7;
+}
+
+input[type="text"] {
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--bg);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 10px 14px;
+  outline: none;
+  width: 100%;
+}
+
+input[type="text"]:focus {
+  border-color: var(--accent);
+}
+
+/* ── 화면 공통 ── */
+.screen {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+  max-width: 720px;
+  width: 100%;
+  padding: 24px;
+}
+
+.logo {
+  text-align: center;
+  line-height: 1.1;
+}
+
+.logo .title {
+  font-size: 56px;
+  font-weight: 700;
+  color: var(--accent-2);
+  text-shadow:
+    3px 3px 0 #b3541e,
+    6px 6px 0 rgba(0, 0, 0, 0.35);
+  letter-spacing: 2px;
+}
+
+.logo .subtitle {
+  margin-top: 10px;
+  font-size: 15px;
+  color: var(--text-dim);
+}
+
+.panel {
+  background: var(--bg-panel);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  padding: 20px;
+  width: 100%;
+}
+
+.panel h2 {
+  font-size: 18px;
+  color: var(--accent-2);
+  margin-bottom: 14px;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.muted {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* ── 캐릭터/맵 선택 ── */
+.select-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.select-grid.maps {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.select-card {
+  background: var(--bg-panel-2);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 6px;
+  text-align: center;
+  cursor: pointer;
+}
+
+.select-card:hover {
+  border-color: var(--accent);
+}
+
+.select-card.selected {
+  border-color: var(--accent-2);
+  background: #3a3066;
+  box-shadow: 0 0 0 2px rgba(255, 210, 63, 0.25);
+}
+
+.select-card canvas {
+  width: 64px;
+  height: 80px;
+  image-rendering: pixelated;
+}
+
+.select-card.map-card canvas {
+  width: 90px;
+  height: 78px;
+}
+
+.select-card .name {
+  font-size: 14px;
+  margin-top: 6px;
+}
+
+.select-card .desc {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+/* ── 인게임 레이아웃 ── */
+.game-layout {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 12px;
+}
+
+.board-wrap {
+  position: relative;
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+canvas.board {
+  image-rendering: pixelated;
+  border: 3px solid var(--line);
+  border-radius: 6px;
+  background: #000;
+}
+
+.hud {
+  width: 210px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hud .timer {
+  font-size: 32px;
+  text-align: center;
+  background: var(--bg-panel);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 8px;
+  color: var(--accent-2);
+}
+
+.hud .timer.urgent {
+  color: var(--danger);
+}
+
+.hud .players {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.hud .player-slot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--bg-panel);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 5px 8px;
+  font-size: 13px;
+}
+
+.hud .player-slot .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hud .player-slot.dead {
+  opacity: 0.45;
+}
+
+.hud .player-slot .kills {
+  margin-left: auto;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.hud .stats {
+  background: var(--bg-panel);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.hud .stats .stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.hud .stats .stat canvas {
+  width: 24px;
+  height: 24px;
+  image-rendering: pixelated;
+}
+
+/* ── 오버레이 (배너/결과) ── */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  pointer-events: none;
+}
+
+.overlay .banner {
+  font-size: 44px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow:
+    3px 3px 0 var(--accent),
+    6px 6px 0 rgba(0, 0, 0, 0.4);
+  animation: banner-pop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.overlay .banner.win {
+  color: var(--accent-2);
+  text-shadow:
+    3px 3px 0 #b3541e,
+    6px 6px 0 rgba(0, 0, 0, 0.4);
+}
+
+.overlay .banner.lose {
+  color: #c9c3e8;
+  text-shadow:
+    3px 3px 0 #555,
+    6px 6px 0 rgba(0, 0, 0, 0.4);
+}
+
+.overlay .actions {
+  pointer-events: auto;
+  display: flex;
+  gap: 12px;
+}
+
+@keyframes banner-pop {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.loading {
+  font-size: 18px;
+  color: var(--text-dim);
+}
+
+/* ── 방 목록 ── */
+.room-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.room-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--bg-panel-2);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 14px;
+}
+
+.room-row .name {
+  font-size: 15px;
+}
+
+.room-row button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.topbar {
+  position: fixed;
+  top: 10px;
+  right: 14px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-dim);
+  z-index: 10;
+}
+
+.topbar button {
+  font-size: 12px;
+  padding: 6px 10px;
+}

@@ -1,0 +1,10 @@
+# Cloudflare Pages 헤더 설정
+# 해시 붙은 vite 번들만 immutable, 해시 없는 생성 에셋은 짧은 캐시
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/assets/generated/*
+  Cache-Control: public, max-age=300, must-revalidate
+
+/api/*
+  Cache-Control: no-store

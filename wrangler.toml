@@ -1,0 +1,35 @@
+name = "splash-arena"
+main = "worker/index.ts"
+compatibility_date = "2026-01-01"
+
+# 정적 게임 빌드 (Workers + Static Assets)
+[assets]
+directory = "dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*", "/ws/*"]
+
+# D1 데이터베이스
+# 생성: wrangler d1 create splash-arena  →  출력된 database_id 를 아래에 기입
+[[d1_databases]]
+binding = "DB"
+database_name = "splash-arena"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# 방 시스템 (방 1개 = RoomDO 1개, 목록 = LobbyDO 싱글톤)
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "RoomDO"
+
+[[durable_objects.bindings]]
+name = "LOBBY"
+class_name = "LobbyDO"
+
+# SQLite 백엔드 DO — 무료 플랜에서도 사용 가능
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RoomDO", "LobbyDO"]
+
+# 시크릿 (배포): wrangler secret put SESSION_SECRET
+# 로컬 개발: .dev.vars 파일에 SESSION_SECRET=... (.env.example 참고)
