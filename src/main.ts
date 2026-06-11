@@ -20,6 +20,7 @@ import {
   clearOverlay,
   showResult,
   CHAR_INFO,
+  feedbackUrl,
   type MatchSetup,
 } from "./ui/screens";
 import { restoreSession, guestLogin, currentUser, recordMatch } from "./auth/client";
@@ -67,7 +68,16 @@ function mountTopbar(): void {
     who.textContent = u ? `${u.nickname} (${u.provider === "guest" ? "게스트" : u.provider})` : "";
   };
   refresh();
-  bar.append(who, muteBtn);
+
+  // GitHub 이슈 바로 작성 링크
+  const feedback = document.createElement("a");
+  feedback.className = "feedback-link";
+  feedback.textContent = "피드백 보내기";
+  feedback.href = feedbackUrl();
+  feedback.target = "_blank";
+  feedback.rel = "noopener noreferrer";
+
+  bar.append(who, feedback, muteBtn);
   document.body.append(bar);
   window.addEventListener("auth-changed", refresh);
 }

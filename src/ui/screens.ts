@@ -19,6 +19,28 @@ export const MAP_INFO = [
   { name: "얼음", theme: "ice" },
 ];
 
+/** GitHub 이슈 바로 작성 URL — 제목/본문 템플릿 + 환경 정보 프리필 */
+export function feedbackUrl(): string {
+  const body = [
+    "## 어떤 피드백인가요?",
+    "(버그 / 개선 제안 / 기타)",
+    "",
+    "## 내용",
+    "",
+    "",
+    "## 재현 방법 (버그라면)",
+    "1. ",
+    "",
+    "---",
+    `- 환경: ${navigator.userAgent}`,
+    `- 화면: ${window.screen.width}x${window.screen.height}`,
+  ].join("\n");
+  return (
+    "https://github.com/Zimins/not-crazyarcade/issues/new" +
+    `?title=${encodeURIComponent("[피드백] ")}&body=${encodeURIComponent(body)}`
+  );
+}
+
 const TEAM_COLORS = ["#2e9df0", "#e84855", "#5cba47", "#ffd23f", "#9b5fe0", "#ff7eb3", "#f2933a", "#7fd4ff"];
 
 export interface MatchSetup {
@@ -85,7 +107,14 @@ export function titleScreen(opts: {
     "이동: <b>방향키 / WASD</b> &nbsp;·&nbsp; 물풍선: <b>Space</b> &nbsp;·&nbsp; " +
     "갇혔을 때 바늘 사용: <b>Space</b><br><span class='muted'>물줄기에 맞으면 물방울에 갇힙니다. " +
     "5초 안에 못 나오면 사망! 적과 닿으면 즉시 터집니다.</span>";
-  help.append(h2, helpText);
+  const feedbackRow = el("p", "muted");
+  feedbackRow.style.marginTop = "10px";
+  const fbLink = el("a", "inline-link", "피드백 보내기 →");
+  fbLink.href = feedbackUrl();
+  fbLink.target = "_blank";
+  fbLink.rel = "noopener noreferrer";
+  feedbackRow.append("버그나 아이디어가 있다면 GitHub 이슈로 알려주세요: ", fbLink);
+  help.append(h2, helpText, feedbackRow);
 
   let starting = false;
   const start = () => {

@@ -405,3 +405,27 @@ canvas.board {
   font-size: 12px;
   padding: 6px 10px;
 }
+
+.topbar .feedback-link {
+  font-size: 12px;
+  color: var(--text);
+  background: var(--bg-panel-2);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  text-decoration: none;
+}
+
+.topbar .feedback-link:hover {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+
+a.inline-link {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+a.inline-link:hover {
+  color: var(--accent-2);
+}
