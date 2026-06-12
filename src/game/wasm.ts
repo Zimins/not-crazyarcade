@@ -14,6 +14,8 @@ export interface MatchConfig {
   mapId: number;
   // [캐릭터, 팀, 봇 여부] — index 0 = 로컬 플레이어
   players: Array<{ charType: number; team: number; isBot: boolean }>;
+  /** 봇 난이도 0=쉬움 1=보통 2=어려움 (미지정 시 1) */
+  botSkill?: number;
 }
 
 export class GameSession {
@@ -26,6 +28,9 @@ export class GameSession {
     let localId = 0;
     cfg.players.forEach((p, i) => {
       const id = this.game.add_player(p.charType, p.team, p.isBot);
+      if (p.isBot && cfg.botSkill !== undefined) {
+        this.game.set_bot_skill(id, cfg.botSkill);
+      }
       if (i === localIndex) localId = id;
     });
     this.localPlayerId = localId;

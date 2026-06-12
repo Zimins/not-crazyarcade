@@ -52,6 +52,8 @@ export interface MatchSetup {
   mapId: number;
   botCount: number;
   teamMode: boolean; // true: 2v2 (나+봇 vs 봇2)
+  /** 봇 난이도 0=쉬움 1=보통 2=어려움 */
+  difficulty: number;
 }
 
 function el<K extends keyof HTMLElementTagNameMap>(
@@ -142,7 +144,7 @@ export function setupScreen(
   opts: { onPlay: (setup: MatchSetup) => void; onBack: () => void }
 ): HTMLElement {
   const root = el("div", "screen");
-  const setup: MatchSetup = { charType: 0, mapId: 0, botCount: 3, teamMode: false };
+  const setup: MatchSetup = { charType: 0, mapId: 0, botCount: 3, teamMode: false, difficulty: 1 };
 
   // 캐릭터 선택
   const charPanel = el("div", "panel");
@@ -216,6 +218,22 @@ export function setupScreen(
   duoBtn.addEventListener("click", () => pick("duo"));
   modeRow.append(ffaBtn, teamBtn, duoBtn);
   modePanel.append(modeRow);
+
+  // 봇 난이도
+  const diffRow = el("div", "row");
+  diffRow.style.marginTop = "10px";
+  diffRow.append(el("span", "muted", "봇 난이도"));
+  const diffBtns: HTMLButtonElement[] = [];
+  ["쉬움", "보통", "어려움"].forEach((label, i) => {
+    const b = el("button", i === setup.difficulty ? "primary" : "", label);
+    b.addEventListener("click", () => {
+      setup.difficulty = i;
+      diffBtns.forEach((bb, j) => (bb.className = j === i ? "primary" : ""));
+    });
+    diffBtns.push(b);
+    diffRow.append(b);
+  });
+  modePanel.append(diffRow);
 
   // 시작/뒤로
   const actions = el("div", "row");

@@ -45,8 +45,13 @@ pub const HARD_MAX_BALLOONS: u32 = 10;
 pub const HARD_MAX_RANGE: u32 = 9;
 pub const HARD_MAX_SPEED_LV: u32 = 10;
 
-/// 봇 AI 사고 주기 (초)
-pub const AI_THINK_INTERVAL: f32 = 0.12;
+/// 봇 난이도별 파라미터 (인덱스: 0=쉬움, 1=보통, 2=어려움)
+/// 사고 주기 (초) — 반응 속도
+pub const AI_THINK_INTERVALS: [f32; 3] = [0.32, 0.20, 0.12];
+/// 도주 트리거 — 폭발까지 남은 시간이 이 값 이하일 때만 위험으로 인지
+pub const AI_FLEE_HORIZONS: [f32; 3] = [1.1, 2.2, f32::INFINITY];
+/// 풍선 설치 망설임 확률 (공격·블록 파괴 시)
+pub const AI_PLACE_HESITANCY: [f32; 3] = [0.6, 0.3, 0.0];
 
 /// 아이템 보급 시각 (남은 시간 기준, 초) — 원작 아이템 비행기 타이밍 차용.
 /// 블록이 다 부서진 후반에도 아이템이 계속 등장해 루즈해지지 않게 한다.

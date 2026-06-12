@@ -207,6 +207,16 @@ fn safe_to_place(g: &Game, i: usize, danger: &[f32]) -> bool {
 // 정렬 데드존(±0.12)보다 커서 2-사이클 진동 교착을 일으켰다. 타일 중심 정렬은
 // move_axis의 코너 슬라이딩 "중심 끌어당김"이 물리 단에서 처리한다.)
 
+/// 결정적 의사난수 [0,1) — 난이도별 망설임 등 봇의 "사람 같은 흔들림"용
+/// (wall clock을 쓰지 않아 락스텝/리플레이 결정성 유지)
+fn pseudo_rand01(tick: u64, id: u32, salt: u32) -> f32 {
+    let mut x = tick ^ ((id as u64) << 32) ^ ((salt as u64) << 48) ^ 0x9E37_79B9;
+    x ^= x >> 33;
+    x = x.wrapping_mul(0xff51_afd7_ed55_8ccd);
+    x ^= x >> 33;
+    (x & 0xFF_FFFF) as f32 / 16_777_216.0
+}
+
 pub fn think(g: &Game, i: usize) -> u8 {
     let p = &g.players[i];
 
@@ -219,9 +229,13 @@ pub fn think(g: &Game, i: usize) -> u8 {
     let (px, py) = p.tile();
     let my_danger = danger[idx(px, py)];
     let speed = p.speed();
+    let skill = p.bot_skill.min(2) as usize;
+    // 난이도별 망설임: 이번 사고 사이클에 공격적 설치를 주저할지
+    let hesitate = pseudo_rand01(g.tick_no, p.id, 7) < AI_PLACE_HESITANCY[skill];
 
     // 1) 지금 위치가 위험 → 탈출 (경유지 위험 고려)
-    if my_danger < INF {
+    //    낮은 난이도는 폭발이 임박해야(horizon) 위험을 인지한다
+    if my_danger < INF && my_danger <= AI_FLEE_HORIZONS[skill] {
         if let Some(step) = escape_step(g, p.id, px, py, &danger, speed) {
             return step;
         }
@@ -287,7 +301,8 @@ pub fn think(g: &Game, i: usize) -> u8 {
     let can_place = p.balloons_used < p.max_balloons;
 
     // 4) 적이 같은 행/열 & 사거리 내, 또는 근접(맨해튼 3 이내) → 풍선 설치
-    if can_place {
+    //    (낮은 난이도는 확률적으로 망설여 공격 압박이 약함)
+    if can_place && !hesitate {
         for q in &g.players {
             if q.id == p.id || !q.alive() || q.team == p.team {
                 continue;
@@ -304,7 +319,7 @@ pub fn think(g: &Game, i: usize) -> u8 {
 
     // 5) 소프트 블록 인접이면서 "설치 후 탈출 가능"한 셀로 이동 → 설치
     //    (설치 불가능한 코너 포켓에 도착해 얼어붙는 것을 방지: 설치 지점 자체를 계획)
-    if can_place {
+    if can_place && !hesitate {
         let mut candidates: Vec<(i32, i32, i32)> = Vec::new(); // (dist, x, y)
         for y in 0..MAP_H as i32 {
             for x in 0..MAP_W as i32 {
@@ -365,6 +380,7 @@ mod tests {
         let mut g = Game::new(5, 0);
         g.add_player(0, 0, true);
         g.add_player(1, 1, false);
+        g.players[0].bot_skill = 2; // 어려움: 위험 즉시 인지
         g.phase = Phase::Playing;
         g.players[0].x = 1.5;
         g.players[0].y = 1.5;
@@ -433,6 +449,7 @@ mod tests {
             }
         }
         g.map.set_tile(3, 7, Tile::Hard); // 경로 중간에 모서리 클립 유발
+        g.players[0].bot_skill = 2;
         g.players[0].x = 1.5;
         g.players[0].y = 6.8; // 비정렬 시작
         g.players[1].x = 13.5;

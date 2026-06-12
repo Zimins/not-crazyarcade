@@ -25,9 +25,14 @@ impl WasmGame {
         }
     }
 
-    /// char_type: 0~3, team: 임의 정수(같으면 한 팀), is_bot
+    /// char_type: 0~7, team: 임의 정수(같으면 한 팀), is_bot
     pub fn add_player(&mut self, char_type: u32, team: i32, is_bot: bool) -> u32 {
         self.inner.add_player(char_type, team, is_bot)
+    }
+
+    /// 봇 난이도: 0=쉬움 1=보통(기본) 2=어려움
+    pub fn set_bot_skill(&mut self, player_id: u32, skill: u32) {
+        self.inner.set_bot_skill(player_id, skill);
     }
 
     /// 사람 플레이어 입력. bitmask: 1=상 2=하 4=좌 8=우 16=액션

@@ -101,6 +101,8 @@ pub struct Player {
     pub input: u8,
     pub prev_input: u8,
     pub ai_timer: f32,
+    /// 봇 난이도 0=쉬움 1=보통 2=어려움 (사람 플레이어는 무시)
+    pub bot_skill: u32,
     pub stats: CharStats,
 }
 
@@ -297,9 +299,16 @@ impl Game {
             input: 0,
             prev_input: 0,
             ai_timer: 0.0,
+            bot_skill: 1,
             stats,
         });
         id
+    }
+
+    pub fn set_bot_skill(&mut self, player_id: u32, skill: u32) {
+        if let Some(p) = self.players.get_mut(player_id as usize) {
+            p.bot_skill = skill.min(2);
+        }
     }
 
     pub fn set_input(&mut self, player_id: u32, input: u8) {
@@ -474,7 +483,8 @@ impl Game {
             }
             self.players[i].ai_timer -= TICK_DT;
             if self.players[i].ai_timer <= 0.0 {
-                self.players[i].ai_timer = AI_THINK_INTERVAL;
+                self.players[i].ai_timer =
+                    AI_THINK_INTERVALS[self.players[i].bot_skill.min(2) as usize];
                 let input = ai::think(self, i);
                 self.players[i].input = input;
             }

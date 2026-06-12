@@ -223,6 +223,7 @@ function buildConfig(setup: MatchSetup): MatchConfig {
     seed: BigInt(Date.now()) ^ (BigInt(Math.floor(Math.random() * 0xffff)) << 32n),
     mapId: setup.mapId,
     players,
+    botSkill: setup.difficulty,
   };
 }
 
