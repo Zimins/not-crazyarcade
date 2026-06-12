@@ -127,4 +127,15 @@ export const sfx = {
     tone(520, 0.08, "square", 0.18, 0.4);
     tone(780, 0.1, "square", 0.14, 0.46);
   },
+  /** 방패 파괴: 유리 깨지는 듯한 차임 */
+  shieldBreak(): void {
+    tone(1400, 0.1, "square", 0.2);
+    tone(900, 0.15, "triangle", 0.18, 0.05, 500);
+    noise(0.12, 0.18, 0.02, 6000);
+  },
+  /** 초록악마: 음산한 하강 와우 */
+  debuff(): void {
+    tone(420, 0.35, "sawtooth", 0.16, 0, 160);
+    tone(310, 0.3, "triangle", 0.14, 0.1, 130);
+  },
 };

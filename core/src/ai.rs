@@ -280,9 +280,19 @@ pub fn think(g: &Game, i: usize) -> u8 {
         return step;
     }
 
-    // 3) 아이템 줍기
+    // 3) 아이템 줍기 (초록악마는 난이도에 따라 회피: 어려움=항상, 보통=50%, 쉬움=모름)
     let mut item_step: Option<(i32, u8)> = None;
     for it in &g.items {
+        if it.kind == crate::game::ItemType::Devil {
+            let aware = match skill {
+                2 => true,
+                1 => pseudo_rand01(((it.x as u64) << 8) | it.y as u64, p.id, 11) < 0.5,
+                _ => false,
+            };
+            if aware {
+                continue;
+            }
+        }
         let ii = idx(it.x, it.y);
         if paths.dist[ii] >= 0 {
             let d = paths.dist[ii];

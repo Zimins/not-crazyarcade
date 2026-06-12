@@ -1,7 +1,7 @@
 // WASM 스냅샷 버퍼 파서. 레이아웃은 core/src/game.rs 의 build_snapshot 과 1:1.
 
 export const HEADER_LEN = 16;
-export const PLAYER_STRIDE = 16;
+export const PLAYER_STRIDE = 18;
 export const BALLOON_STRIDE = 6;
 export const STREAM_STRIDE = 4;
 export const ITEM_STRIDE = 4;
@@ -34,6 +34,8 @@ export const enum Ev {
   NeedleEscape = 11,
   ItemDestroyed = 12,
   Airdrop = 13,
+  ShieldBreak = 14,
+  Debuff = 15,
 }
 
 export interface PlayerView {
@@ -53,6 +55,8 @@ export interface PlayerView {
   needles: number;
   isBot: boolean;
   kills: number;
+  shield: boolean;
+  oxygen: number;
 }
 
 export interface BalloonView {
@@ -133,6 +137,8 @@ export function parseSnapshot(buf: Float32Array): Snapshot {
       needles: buf[b + 13],
       isBot: buf[b + 14] > 0.5,
       kills: buf[b + 15],
+      shield: buf[b + 16] > 0.5,
+      oxygen: buf[b + 17],
     });
   }
   off += nPlayers * PLAYER_STRIDE;

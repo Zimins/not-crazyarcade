@@ -97,6 +97,10 @@ pub struct Player {
     pub range: u32,
     pub speed_lv: u32,
     pub needles: u32,
+    /// 물줄기 1회 방어막 보유 여부
+    pub shield: bool,
+    /// 산소통 보유 수 (갇힐 때 1개 자동 소모, 버블 +3초)
+    pub oxygen: u32,
     pub kills: u32,
     pub input: u8,
     pub prev_input: u8,
@@ -167,6 +171,12 @@ pub enum ItemType {
     SpeedUp,
     Needle,
     MaxRange,
+    /// 물줄기 1회 방어 (피격 시 소멸 + 짧은 무적)
+    Shield,
+    /// 갇혔을 때 자동 사용 — 버블 시간 +3초
+    Oxygen,
+    /// 함정: 성장한 능력치 1개를 랜덤으로 잃음
+    Devil,
 }
 
 impl ItemType {
@@ -177,6 +187,9 @@ impl ItemType {
             ItemType::SpeedUp => 2.0,
             ItemType::Needle => 3.0,
             ItemType::MaxRange => 4.0,
+            ItemType::Shield => 5.0,
+            ItemType::Oxygen => 6.0,
+            ItemType::Devil => 7.0,
         }
     }
 }
@@ -203,6 +216,8 @@ pub const EV_ROUND_END: f32 = 10.0;
 pub const EV_NEEDLE_ESCAPE: f32 = 11.0;
 pub const EV_ITEM_DESTROYED: f32 = 12.0;
 pub const EV_AIRDROP: f32 = 13.0;
+pub const EV_SHIELD_BREAK: f32 = 14.0;
+pub const EV_DEBUFF: f32 = 15.0;
 
 pub struct Event {
     pub kind: f32,
@@ -295,6 +310,8 @@ impl Game {
             range: stats.start_range,
             speed_lv: stats.start_speed_lv,
             needles: 0,
+            shield: false,
+            oxygen: 0,
             kills: 0,
             input: 0,
             prev_input: 0,
@@ -815,14 +832,20 @@ impl Game {
     /// 아이템 종류 가중치 추첨 (블록 드랍·공중 보급 공용)
     fn roll_item(&mut self) -> ItemType {
         let roll = self.rng.next_f32();
-        if roll < 0.30 {
+        if roll < 0.24 {
             ItemType::BalloonUp
-        } else if roll < 0.60 {
+        } else if roll < 0.48 {
             ItemType::RangeUp
-        } else if roll < 0.85 {
+        } else if roll < 0.68 {
             ItemType::SpeedUp
-        } else if roll < 0.97 {
+        } else if roll < 0.78 {
             ItemType::Needle
+        } else if roll < 0.86 {
+            ItemType::Shield
+        } else if roll < 0.93 {
+            ItemType::Oxygen
+        } else if roll < 0.98 {
+            ItemType::Devil
         } else {
             ItemType::MaxRange
         }
@@ -883,9 +906,21 @@ impl Game {
                 .any(|s| s.x == tx && s.y == ty && s.age < STREAM_HIT_SECS)
             {
                 let p = &mut self.players[i];
+                let (x, y, id) = (p.x, p.y, p.id);
+                if p.shield {
+                    // 방패가 1회 방어 — 소멸 + 짧은 무적
+                    p.shield = false;
+                    p.invuln = 1.0;
+                    self.push_event(EV_SHIELD_BREAK, x, y, id as f32);
+                    continue;
+                }
                 p.state = PState::Trapped;
                 p.state_timer = TRAPPED_SECS;
-                let (x, y, id) = (p.x, p.y, p.id);
+                // 산소통: 자동 사용으로 버블 시간 연장
+                if p.oxygen > 0 {
+                    p.oxygen -= 1;
+                    p.state_timer += 3.0;
+                }
                 self.push_event(EV_TRAPPED, x, y, id as f32);
             }
         }
@@ -911,23 +946,61 @@ impl Game {
                 }
             });
             if let Some((kind, ix, iy)) = picked {
-                let p = &mut self.players[i];
-                match kind {
-                    ItemType::BalloonUp => {
-                        p.max_balloons = (p.max_balloons + 1).min(p.stats.max_balloons).min(HARD_MAX_BALLOONS)
+                let mut debuffed = false;
+                {
+                    let p = &mut self.players[i];
+                    match kind {
+                        ItemType::BalloonUp => {
+                            p.max_balloons =
+                                (p.max_balloons + 1).min(p.stats.max_balloons).min(HARD_MAX_BALLOONS)
+                        }
+                        ItemType::RangeUp => {
+                            p.range = (p.range + 1).min(p.stats.max_range).min(HARD_MAX_RANGE)
+                        }
+                        ItemType::SpeedUp => {
+                            p.speed_lv =
+                                (p.speed_lv + 1).min(p.stats.max_speed_lv).min(HARD_MAX_SPEED_LV)
+                        }
+                        ItemType::Needle => p.needles = (p.needles + 1).min(MAX_NEEDLES),
+                        ItemType::MaxRange => p.range = p.stats.max_range.min(HARD_MAX_RANGE),
+                        ItemType::Shield => p.shield = true,
+                        ItemType::Oxygen => p.oxygen = (p.oxygen + 1).min(2),
+                        ItemType::Devil => debuffed = true,
                     }
-                    ItemType::RangeUp => {
-                        p.range = (p.range + 1).min(p.stats.max_range).min(HARD_MAX_RANGE)
-                    }
-                    ItemType::SpeedUp => {
-                        p.speed_lv = (p.speed_lv + 1).min(p.stats.max_speed_lv).min(HARD_MAX_SPEED_LV)
-                    }
-                    ItemType::Needle => p.needles = (p.needles + 1).min(MAX_NEEDLES),
-                    ItemType::MaxRange => p.range = p.stats.max_range.min(HARD_MAX_RANGE),
+                }
+                if debuffed {
+                    self.apply_devil(i);
                 }
                 self.push_event(EV_PICKUP, ix, iy, kind.code());
             }
         }
+    }
+
+    /// 초록악마: 성장한 능력치(시작값 초과분) 중 하나를 랜덤으로 잃음
+    fn apply_devil(&mut self, idx: usize) {
+        let p = &self.players[idx];
+        let mut pool: Vec<u8> = Vec::new();
+        if p.max_balloons > p.stats.start_balloons {
+            pool.push(0);
+        }
+        if p.range > p.stats.start_range {
+            pool.push(1);
+        }
+        if p.speed_lv > p.stats.start_speed_lv {
+            pool.push(2);
+        }
+        if pool.is_empty() {
+            return; // 잃을 게 없으면 무해
+        }
+        let choice = pool[self.rng.next_range(pool.len() as u32) as usize];
+        let (x, y) = (self.players[idx].x, self.players[idx].y);
+        let p = &mut self.players[idx];
+        match choice {
+            0 => p.max_balloons -= 1,
+            1 => p.range -= 1,
+            _ => p.speed_lv -= 1,
+        }
+        self.push_event(EV_DEBUFF, x, y, choice as f32);
     }
 
     /// 갇힌 플레이어: 타이머, 구출/터뜨리기
@@ -1009,7 +1082,7 @@ impl Game {
 
     // ── 스냅샷: JS가 zero-copy로 읽는 패킹 버퍼 ────────────
     pub const HEADER_LEN: usize = 16;
-    pub const PLAYER_STRIDE: usize = 16;
+    pub const PLAYER_STRIDE: usize = 18;
     pub const BALLOON_STRIDE: usize = 6;
     pub const STREAM_STRIDE: usize = 4;
     pub const ITEM_STRIDE: usize = 4;
@@ -1064,6 +1137,8 @@ impl Game {
             buf.push(p.needles as f32);
             buf.push(if p.is_bot { 1.0 } else { 0.0 });
             buf.push(p.kills as f32);
+            buf.push(if p.shield { 1.0 } else { 0.0 });
+            buf.push(p.oxygen as f32);
         }
         for b in &self.balloons {
             buf.push(b.x as f32 + 0.5);
@@ -1551,6 +1626,99 @@ mod tests {
         }
         assert!(g.balloons.is_empty(), "세 풍선 모두 터져야 함");
         assert!(!partial, "3연쇄가 같은 틱에 일어나야 함");
+    }
+
+    /// 방패: 물줄기 1회 방어 후 소멸, 두 번째 피격엔 갇힘
+    #[test]
+    fn shield_blocks_one_hit() {
+        let mut g = setup();
+        g.players[0].x = 0.5;
+        g.players[0].y = 0.5;
+        g.players[0].shield = true;
+        g.players[1].x = 14.5;
+        g.players[1].y = 0.5;
+        g.players[0].input = IN_ACTION;
+        g.tick();
+        g.players[0].input = 0;
+        tick_n(&mut g, (BALLOON_FUSE / TICK_DT) as usize + 2);
+        assert_eq!(g.players[0].state, PState::Normal, "방패가 1회 방어");
+        assert!(!g.players[0].shield, "방패 소멸");
+        assert!(g.players[0].invuln > 0.0, "방어 직후 짧은 무적");
+        assert!(
+            g.events.iter().any(|e| e.kind == EV_SHIELD_BREAK),
+            "방패 파괴 이벤트"
+        );
+        // 무적이 끝난 뒤 두 번째 풍선 → 이번엔 갇힘
+        tick_n(&mut g, 70);
+        g.players[0].input = IN_ACTION;
+        g.tick();
+        g.players[0].input = 0;
+        tick_n(&mut g, (BALLOON_FUSE / TICK_DT) as usize + 2);
+        assert_eq!(g.players[0].state, PState::Trapped, "방패 없으면 갇힘");
+    }
+
+    /// 산소통: 갇힐 때 자동 사용되어 버블 시간 +3초
+    #[test]
+    fn oxygen_extends_bubble_timer() {
+        let mut g = setup();
+        g.players[0].x = 0.5;
+        g.players[0].y = 0.5;
+        g.players[0].oxygen = 1;
+        g.players[1].x = 14.5;
+        g.players[1].y = 0.5;
+        g.players[0].input = IN_ACTION;
+        g.tick();
+        g.players[0].input = 0;
+        tick_n(&mut g, (BALLOON_FUSE / TICK_DT) as usize + 2);
+        assert_eq!(g.players[0].state, PState::Trapped);
+        assert!(
+            g.players[0].state_timer > TRAPPED_SECS + 2.5,
+            "산소통으로 버블 시간 연장: {}",
+            g.players[0].state_timer
+        );
+        assert_eq!(g.players[0].oxygen, 0, "산소통 소모");
+    }
+
+    /// 초록악마: 성장분이 있으면 1개 잃고, 없으면 무해
+    #[test]
+    fn devil_removes_one_earned_stat() {
+        let mut g = setup();
+        g.players[1].x = 14.5;
+        g.players[1].y = 12.5;
+        let p = &mut g.players[0];
+        p.x = 0.5;
+        p.y = 0.5;
+        // 성장분 부여
+        p.max_balloons = p.stats.start_balloons + 2;
+        p.range = p.stats.start_range + 1;
+        let sum_before = p.max_balloons + p.range + p.speed_lv;
+        g.items.push(GroundItem { x: 0, y: 0, kind: ItemType::Devil, protect_until: 0.0 });
+        g.tick();
+        let p = &g.players[0];
+        assert_eq!(
+            p.max_balloons + p.range + p.speed_lv,
+            sum_before - 1,
+            "능력치 1 감소"
+        );
+        assert!(g.events.iter().any(|e| e.kind == EV_DEBUFF), "디버프 이벤트");
+        assert!(
+            p.max_balloons >= p.stats.start_balloons
+                && p.range >= p.stats.start_range
+                && p.speed_lv >= p.stats.start_speed_lv,
+            "시작값 밑으로는 안 내려감"
+        );
+
+        // 성장분이 없으면 무해
+        let mut g2 = setup();
+        g2.players[1].x = 14.5;
+        g2.players[1].y = 12.5;
+        g2.players[0].x = 0.5;
+        g2.players[0].y = 0.5;
+        let sum2 = g2.players[0].max_balloons + g2.players[0].range + g2.players[0].speed_lv;
+        g2.items.push(GroundItem { x: 0, y: 0, kind: ItemType::Devil, protect_until: 0.0 });
+        g2.tick();
+        let p2 = &g2.players[0];
+        assert_eq!(p2.max_balloons + p2.range + p2.speed_lv, sum2, "성장분 없으면 무해");
     }
 
     #[test]

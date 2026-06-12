@@ -27,7 +27,16 @@ const STREAM_PART_NAMES = [
   "stream_end_d",
 ] as const;
 
-const ITEM_NAMES = ["item_balloon", "item_range", "item_speed", "item_needle", "item_maxrange"] as const;
+const ITEM_NAMES = [
+  "item_balloon",
+  "item_range",
+  "item_speed",
+  "item_needle",
+  "item_maxrange",
+  "item_shield",
+  "item_oxygen",
+  "item_devil",
+] as const;
 
 const DIR_NAMES = ["down", "up", "left", "right"] as const;
 
@@ -108,7 +117,11 @@ export class Renderer {
         case Ev.Rescue:
         case Ev.NeedleEscape:
         case Ev.Airdrop:
+        case Ev.ShieldBreak:
           this.fx.push({ kind: "spark", x: e.x, y: e.y, t: 0 });
+          break;
+        case Ev.Debuff:
+          this.fx.push({ kind: "splash", x: e.x, y: e.y, t: 0 });
           break;
         case Ev.Explode:
           // 풍선 터짐을 명확히: 셀마다 팝 링 연출 (연쇄 동시 폭발 가독성)
@@ -240,6 +253,13 @@ export class Renderer {
       const dir = DIR_NAMES[p.dir] ?? "down";
       const fi = p.moving ? Math.floor(this.time * 9) % 4 : 0;
       this.blit("characters", `${charBase}_${dir}_${fi}`, px - 16, py - 28);
+
+      // 방패 보유: 은은한 보호막 오라
+      if (p.shield) {
+        this.ctx.globalAlpha = 0.4 + 0.1 * Math.sin(this.time * 6);
+        this.blit("balloons", `bubble_${Math.floor(this.time * 3) % 3}`, px - 20, py - 26);
+        this.ctx.globalAlpha = 1;
+      }
     }
   }
 

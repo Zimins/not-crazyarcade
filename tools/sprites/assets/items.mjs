@@ -254,6 +254,123 @@ function drawMaxRange(s) {
   s.px(20, 16, withAlpha(PAL.yellow, 200));
 }
 
+// ── 방패: 파란 카이트 실드 + 물방울 문양 ───────────────────
+function drawShield(s) {
+  card(s);
+  groundShadow(s, 11, 7);
+  const t = new Sprite(24, 24);
+  const R = ramp(PAL.water);
+  // 방패 실루엣: 위 넓고 아래로 테이퍼
+  const rows = [
+    [5, 7, 10],
+    [6, 6, 12], [7, 6, 12], [8, 6, 12], [9, 6, 12], [10, 6, 12], [11, 6, 12], [12, 6, 12],
+    [13, 7, 10],
+    [14, 8, 8],
+    [15, 9, 6],
+    [16, 10, 4],
+    [17, 11, 2],
+  ];
+  for (const [y, x, w] of rows)
+    for (let xx = x; xx < x + w; xx++) {
+      let c = R[2];
+      if (xx >= x + w - 2) c = R[1]; // 우측 음영
+      if (y >= 14 && xx >= x + w - 1) c = R[0];
+      t.px(xx, y, c);
+    }
+  // 상단 림 + 좌측 하이라이트 (광원 좌상단)
+  t.hLine(7, 5, 10, R[3]);
+  t.vLine(7, 6, 6, R[3]);
+  // 안쪽 패널 라인
+  t.hLine(8, 7, 8, PAL.waterDeep);
+  // 중앙 물방울 문양
+  t.px(11, 9, PAL.foam);
+  t.fillRect(10, 10, 3, 2, PAL.foam);
+  t.px(11, 12, PAL.waterLight);
+  t.outlineSilhouette(O);
+  s.blit(t, 0, 0);
+  sparkle(s, 19, 5, 1, "#dff3ff", PAL.white);
+}
+
+// ── 산소통: 청록 탱크 + 밸브 ───────────────────────────────
+function drawOxygen(s) {
+  card(s);
+  groundShadow(s, 11, 6);
+  const t = new Sprite(24, 24);
+  const R = ramp("#2fbfa3");
+  // 밸브 (스틸 T자)
+  t.fillRect(10, 4, 4, 2, PAL.steel);
+  t.hLine(10, 4, 4, PAL.stoneLight);
+  t.fillRect(11, 6, 2, 2, PAL.steelDark);
+  t.px(14, 4, PAL.red); // 게이지 점
+  // 탱크 본체 (둥근 원통)
+  const rows = [
+    [8, 9, 6],
+    [9, 8, 8], [10, 8, 8], [11, 8, 8], [12, 8, 8], [13, 8, 8], [14, 8, 8], [15, 8, 8], [16, 8, 8],
+    [17, 9, 6],
+  ];
+  for (const [y, x, w] of rows)
+    for (let xx = x; xx < x + w; xx++) {
+      let c = R[2];
+      if (xx >= x + w - 2) c = R[1];
+      if (y >= 16) c = R[1];
+      if (xx >= x + w - 1 && y >= 12) c = R[0];
+      t.px(xx, y, c);
+    }
+  // 좌측 하이라이트 + 상단 어깨 밝게
+  t.vLine(9, 9, 6, R[3]);
+  t.hLine(9, 8, 4, R[3]);
+  // 탱크 밴드
+  t.hLine(8, 12, 8, "#1f8a76");
+  t.outlineSilhouette(O);
+  s.blit(t, 0, 0);
+  // 기포 포인트 (우상단)
+  s.px(18, 7, withAlpha(PAL.waterLight, 220));
+  s.px(20, 5, withAlpha(PAL.waterLight, 160));
+  s.px(17, 10, withAlpha(PAL.waterLight, 140));
+}
+
+// ── 초록악마: 함정 아이템 — 뿔 달린 초록 임프 얼굴 ─────────
+function drawDevil(s) {
+  card(s);
+  groundShadow(s, 10, 6);
+  const t = new Sprite(24, 24);
+  const G = ramp("#43b32a");
+  // 뿔 2개 (얼굴보다 먼저 — 뒤에 깔림)
+  for (let i = 0; i < 3; i++) {
+    t.px(7 - i * 0 + i, 8 - i, G[1]); // 왼뿔: (7,8)→(9,6) 사선
+    t.px(16 - i, 8 - i, G[1]); // 오른뿔 — 대칭 사선
+  }
+  t.px(9, 6, G[3]);
+  t.px(14, 6, G[3]);
+  // 얼굴 (둥근 구)
+  const cx = 11.5, cy = 13, r = 5.2;
+  for (let y = Math.floor(cy - r); y <= cy + r; y++)
+    for (let x = Math.floor(cx - r); x <= cx + r; x++) {
+      const d2 = (x - cx) ** 2 + (y - cy) ** 2;
+      if (d2 > r * r + r * 0.5) continue;
+      let c = G[2];
+      if (d2 >= (r - 1.7) ** 2 && x - cx + (y - cy) >= 2) c = G[1];
+      if (d2 >= (r - 1.2) ** 2 && x - cx + (y - cy) >= 4) c = G[0];
+      t.px(x, y, c);
+    }
+  // 좌상단 하이라이트
+  t.disc(9, 10.5, 1.5, G[3]);
+  // 매서운 사선 눈
+  t.px(8, 11, O); t.px(9, 12, O);
+  t.px(15, 11, O); t.px(14, 12, O);
+  // 씩 웃는 입 + 송곳니
+  t.hLine(8, 15, 8, O);
+  t.px(9, 14, O);
+  t.px(14, 14, O);
+  t.px(10, 16, PAL.white);
+  t.px(13, 16, PAL.white);
+  t.outlineSilhouette(O);
+  s.blit(t, 0, 0);
+  // 불길한 보라 포인트
+  s.px(4, 5, withAlpha(PAL.purple, 180));
+  s.px(20, 17, withAlpha(PAL.purple, 140));
+}
+
 export default {
   name: "items",
   sprites: [
@@ -262,5 +379,8 @@ export default {
     { name: "item_speed", w: 24, h: 24, draw: drawSpeed },
     { name: "item_needle", w: 24, h: 24, draw: drawNeedle },
     { name: "item_maxrange", w: 24, h: 24, draw: drawMaxRange },
+    { name: "item_shield", w: 24, h: 24, draw: drawShield },
+    { name: "item_oxygen", w: 24, h: 24, draw: drawOxygen },
+    { name: "item_devil", w: 24, h: 24, draw: drawDevil },
   ],
 };

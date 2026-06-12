@@ -482,6 +482,8 @@ export function gameScreen(atlases: Atlases): HudRefs {
     { frame: "item_range", key: "range" },
     { frame: "item_speed", key: "speed" },
     { frame: "item_needle", key: "needles" },
+    { frame: "item_shield", key: "shield" },
+    { frame: "item_oxygen", key: "oxygen" },
   ] as const;
   const statValues = new Map<string, HTMLElement>();
   for (const sd of statDefs) {
@@ -538,6 +540,8 @@ export function gameScreen(atlases: Atlases): HudRefs {
         range: `${me.range}`,
         speed: `${me.speedLv}`,
         needles: `${me.needles}`,
+        shield: me.shield ? "1" : "0",
+        oxygen: `${me.oxygen}`,
       };
       for (const [k, v] of Object.entries(vals)) {
         const elv = statValues.get(k);

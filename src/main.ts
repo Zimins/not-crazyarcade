@@ -136,6 +136,12 @@ function handleSfxEvents(events: GameEvent[]): void {
       case Ev.Airdrop:
         sfx.airdrop();
         break;
+      case Ev.ShieldBreak:
+        sfx.shieldBreak();
+        break;
+      case Ev.Debuff:
+        sfx.debuff();
+        break;
       default:
         break;
     }
