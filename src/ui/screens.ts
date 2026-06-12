@@ -11,6 +11,10 @@ export const CHAR_INFO = [
   { name: "피코", desc: "스피드" },
   { name: "부리", desc: "물량" },
   { name: "테라", desc: "폭발" },
+  { name: "모카", desc: "대기만성" },
+  { name: "푸딩", desc: "더블풍선" },
+  { name: "치치", desc: "질주" },
+  { name: "펭펭", desc: "초반강세" },
 ];
 
 export const MAP_INFO = [

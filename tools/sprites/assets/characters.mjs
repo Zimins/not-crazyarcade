@@ -1,6 +1,8 @@
 // 오리지널 캐릭터 4종 (32x40, SD 2.5등신) — 물풍선 아케이드용
 //   char0 코코: 노란 병아리 (밸런스) / char1 피코: 하늘색 아기 고양이 (스피드)
 //   char2 부리: 초록 아기 개구리 (탱크) / char3 테라: 보라 아기 여우 (사거리)
+//   char4 모카: 갈색 아기 곰 (파워) / char5 푸딩: 분홍 아기 토끼 (점프력)
+//   char6 치치: 주황 아기 다람쥐 (민첩) / char7 펭펭: 회흑색 아기 펭귄 (수영)
 // 광원: 좌상단 고정. 4단 램프 + 우하단 코어섀도, 필로우 셰이딩 금지.
 import { Sprite, PAL, ramp, shade } from "../lib.mjs";
 
@@ -20,6 +22,11 @@ const CHARS = [
   { hr: [9.4, 9.8], br: [6.6, 6.3], body: ramp("#54b8f0"), belly: ramp("#e9f7ff"), limb: ramp("#54b8f0"), nose: shade(PAL.pink, -0.25) },
   { hr: [10.4, 9.2], br: [8.4, 6.8], body: ramp(PAL.grass), belly: ramp("#d9f0a4"), limb: ramp("#49a341") },
   { hr: [9.7, 9.9], br: [6.8, 6.4], body: ramp(PAL.purple), belly: ramp("#f3ecff"), limb: ramp("#7a45c2") },
+  // ── char4~7 추가 캐릭터 (muzzle: 주둥이 패치, earIn: 귓속, tail: 꼬리, beak: 부리) ──
+  { hr: [10.2, 9.6], br: [7.6, 6.7], body: ramp(PAL.wood), belly: ramp("#e9c896"), limb: ramp(PAL.wood), muzzle: ramp("#f2d8aa") },
+  { hr: [9.6, 9.7], br: [6.6, 6.2], body: ramp(PAL.pink), belly: ramp("#ffe9f3"), limb: ramp(PAL.pink), nose: "#df4d85", earIn: "#ffd4e6" },
+  { hr: [9.8, 9.4], br: [6.8, 6.4], body: ramp(PAL.orange), belly: ramp("#ffe2b0"), limb: ramp("#d8702b"), tail: ramp("#e8862f") },
+  { hr: [9.9, 9.7], br: [7.2, 6.6], body: ramp(shade(PAL.outlineSoft, 0.12)), belly: ramp(PAL.white), limb: ramp(PAL.orange), beak: ramp(PAL.yellow) },
 ];
 
 // ── 공용 형태 헬퍼 ─────────────────────────────────────────
@@ -170,6 +177,7 @@ function foxTailSide(s, c, dy) {
 
 /// 머리 장식 (볏/귀/눈혹) — 머리 볼 위에 그림
 function headDecor(s, id, c, hx, hy, view) {
+  if (id >= 4) return headDecor2(s, id, c, hx, hy, view);
   if (id === 0) {
     const R = c.comb;
     s.fillRect(hx - 0.5, hy - 14, 2, 3, R[2]);
@@ -258,6 +266,7 @@ function frogFace(s, c, hx, hy, face) {
 }
 
 function faceDown(s, id, c, hx, hy, face) {
+  if (id >= 4) return faceDown2(s, id, c, hx, hy, face);
   if (id === 2) return frogFace(s, c, hx, hy, face);
   const exL = hx - 5.5;
   const exR = hx + 2.5;
@@ -309,6 +318,7 @@ function faceDown(s, id, c, hx, hy, face) {
 }
 
 function faceSide(s, id, c, hy) {
+  if (id >= 4) return faceSide2(s, id, c, hy);
   if (id !== 2) bigEye(s, 8, hy - 3, id === 1 ? 2 : -1);
   if (id === 0) {
     s.hLine(3, hy - 1, 3, c.limb[3]);
@@ -336,6 +346,7 @@ function faceSide(s, id, c, hy) {
 
 /// 등 디테일 (뒷모습 전용, 몸 위에)
 function backDetail(s, id, c, dy) {
+  if (id >= 4) return backDetail2(s, id, c, dy);
   if (id === 0) {
     s.px(14, 33 + dy, c.body[1]);
     s.px(16, 33 + dy, c.body[1]);
@@ -343,6 +354,223 @@ function backDetail(s, id, c, dy) {
   } else if (id === 2) {
     s.fillRect(11, 28 + dy, 2, 2, c.body[1]);
     s.fillRect(19, 30 + dy, 2, 2, c.body[1]);
+  }
+}
+
+// ── 추가 캐릭터(char4~7) 전용 파츠 ─────────────────────────
+const BLUSH5 = "#ff5e9c"; // 푸딩 전용 볼터치 (분홍 몸과 대비)
+
+/// 치치: 정면 — 등 뒤 오른쪽으로 솟아 안쪽으로 말리는 큰 꼬리 (몸/머리보다 먼저)
+function squirrelTailDown(s, c, dy) {
+  ball(s, 25.5, 27 + dy, 3.3, 6.8, c.tail); // 기둥
+  ball(s, 27, 18.5 + dy, 2.5, 2.6, c.tail); // 위로 만 끝
+  ball(s, 25, 15.5 + dy, 1.8, 1.6, c.tail); // 머리 쪽 갈고리
+  s.ellipse(27, 16.5 + dy, 1.4, 1.1, c.belly[2]); // 끝 크림색
+}
+
+/// 치치: 뒷모습 — 등을 타고 올라오는 꼬리 (머리까지 그린 뒤 맨 위에)
+function squirrelTailUp(s, c, dy) {
+  ball(s, 15, 28.5 + dy, 3.5, 6.5, c.tail);
+  ball(s, 12.5, 19.5 + dy, 2.7, 2.5, c.tail);
+  s.ellipse(12, 18.5 + dy, 1.5, 1.1, c.belly[2]);
+}
+
+/// char4~7 옆모습 꼬리 (몸보다 먼저 — 몸 뒤로 깔린다)
+function sideTail2(s, id, c, dy) {
+  if (id === 4) {
+    ball(s, 24, 31 + dy, 1.9, 1.8, c.body); // 모카: 짧은 곰 꼬리
+  } else if (id === 5) {
+    ball(s, 24.5, 30.5 + dy, 2.3, 2.2, c.belly); // 푸딩: 솜뭉치 꼬리
+  } else if (id === 6) {
+    ball(s, 26, 30 + dy, 3.4, 5.6, c.tail); // 치치: 큰 S자 꼬리
+    ball(s, 24.5, 21 + dy, 2.9, 2.7, c.tail);
+    s.ellipse(25.5, 20 + dy, 1.5, 1.1, c.belly[2]);
+  } else {
+    s.fillRect(23, 30 + dy, 2, 2, c.body[1]); // 펭펭: 뭉툭한 꽁지
+    s.px(25, 30 + dy, c.body[1]);
+  }
+}
+
+/// 펭펭: 옆모습 흰 배 (몸 볼 위에)
+function pengBellySide(s, c, dy) {
+  s.ellipse(13.5, 31.5 + dy, 3.4, 4.4, c.belly[2]);
+  s.hLine(12, 35 + dy, 4, c.belly[1]);
+}
+
+/// 펭펭: 작은 노란 부리
+function pengBeak(s, c, hx, hy, open) {
+  s.fillRect(hx - 0.5, hy + 1, 2, 1, c.beak[3]);
+  s.fillRect(hx - 1.5, hy + 2, 4, 1, c.beak[2]);
+  if (open) {
+    s.fillRect(hx - 1.5, hy + 3, 4, 1, MOUTH);
+    s.fillRect(hx - 0.5, hy + 4, 2, 1, c.beak[1]);
+  } else {
+    s.fillRect(hx - 0.5, hy + 3, 2, 1, c.beak[1]);
+  }
+}
+
+/// char4~7 머리 장식 (곰귀/토끼귀/다람쥐귀+볼/펭귄 얼굴패치)
+function headDecor2(s, id, c, hx, hy, view) {
+  if (id === 4) {
+    // 모카: 둥근 곰 귀 (정면은 귓속 패치)
+    if (view === "side") {
+      ball(s, 19.5, hy - 9.5, 2.8, 2.6, c.body);
+      ball(s, 10, hy - 10, 2.9, 2.7, c.body);
+      s.disc(10, hy - 10, 1.45, c.muzzle[2]);
+    } else {
+      ball(s, hx - 6, hy - 9.5, 2.9, 2.7, c.body);
+      ball(s, hx + 6, hy - 9.5, 2.9, 2.7, c.body);
+      if (view === "down") {
+        s.disc(hx - 6, hy - 9.5, 1.45, c.muzzle[2]);
+        s.disc(hx + 6, hy - 9.5, 1.45, c.muzzle[2]);
+      }
+    }
+  } else if (id === 5) {
+    // 푸딩: 길게 선 토끼 귀 (정면은 연분홍 귓속)
+    if (view === "side") {
+      s.ellipse(18, hy - 10, 1.8, 4.4, c.body[1]); // 먼 귀
+      ball(s, 13, hy - 9.5, 1.9, 4.7, c.body); // 가까운 귀
+      s.ellipse(13, hy - 10, 0.8, 3, c.earIn);
+    } else {
+      ball(s, hx - 4, hy - 9.5, 1.9, 4.8, c.body);
+      ball(s, hx + 4, hy - 9.5, 1.9, 4.8, c.body);
+      if (view === "down") {
+        s.ellipse(hx - 4, hy - 10, 1.05, 3.2, c.earIn);
+        s.ellipse(hx + 4, hy - 10, 1.05, 3.2, c.earIn);
+      }
+    }
+  } else if (id === 6) {
+    // 치치: 작은 삼각 귀 + 도토리 문 듯 통통한 볼
+    if (view === "side") {
+      earTri(s, 19.5, hy - 12, 5, 2.5, c.body[1], c.body[0], null);
+      earTri(s, 10, hy - 12, 5, 2.5, c.body[2], c.body[1], null);
+    } else {
+      earTri(s, hx - 6, hy - 12, 5, 2.5, c.body[2], c.body[1], null);
+      earTri(s, hx + 6, hy - 12, 5, 2.5, c.body[2], c.body[1], null);
+      if (view === "down") {
+        ball(s, hx - 8, hy + 1.5, 2.6, 2.3, c.body);
+        ball(s, hx + 8, hy + 1.5, 2.6, 2.3, c.body);
+      }
+    }
+  } else {
+    // 펭펭: 정수리 깃털 + 흰 얼굴 패치
+    if (view === "side") {
+      s.px(14, hy - 11, c.body[2]);
+      s.px(15, hy - 12, c.body[2]);
+      s.px(16, hy - 12, c.body[1]);
+      s.ellipse(8, hy - 1.5, 4.6, 4.3, c.belly[2]);
+    } else {
+      s.px(hx + 0.5, hy - 10.5, c.body[2]);
+      s.px(hx + 1.5, hy - 11.5, c.body[2]);
+      s.px(hx + 2.5, hy - 11.5, c.body[1]);
+      if (view === "down") {
+        s.ellipse(hx - 3.5, hy - 3.5, 3.4, 3.6, c.belly[2]);
+        s.ellipse(hx + 3.5, hy - 3.5, 3.4, 3.6, c.belly[2]);
+        s.ellipse(hx, hy + 1, 5.5, 3.4, c.belly[2]);
+      }
+    }
+  }
+}
+
+/// char4~7 정면 얼굴
+function faceDown2(s, id, c, hx, hy, face) {
+  const exL = hx - 5.5;
+  const exR = hx + 2.5;
+  const ey = hy - 3;
+  const cheek = id === 5 ? BLUSH5 : PINK;
+  s.fillRect(hx - 7.5, hy + 2, 2, 1, cheek);
+  s.fillRect(hx + 5.5, hy + 2, 2, 1, cheek);
+  if (id === 4) {
+    // 모카: 밝은 베이지 주둥이 패치
+    s.ellipse(hx, hy + 3.2, 4.3, 2.7, c.muzzle[2]);
+    s.hLine(hx - 2.5, hy + 1, 3, c.muzzle[3]);
+  }
+  // 눈
+  if (face === "trapped") {
+    dotEye(s, exL + 0.5, ey + 1);
+    dotEye(s, exR + 0.5, ey + 1);
+  } else if (face === "dead") {
+    xEye(s, exL, ey);
+    xEye(s, exR, ey);
+  } else {
+    const sk = id === 6;
+    bigEye(s, exL, ey, sk ? 2 : -1);
+    bigEye(s, exR, ey, sk ? 0 : -1);
+  }
+  // 입/코
+  if (id === 4) {
+    s.fillRect(hx - 1, hy + 2, 2, 2, OUT);
+    if (face === "trapped") oMouth(s, hx, hy + 5, true);
+    else if (face === "win") {
+      s.fillRect(hx - 1.5, hy + 4, 4, 2, OUT);
+      s.fillRect(hx - 0.5, hy + 5, 2, 1, MOUTH);
+    } else {
+      s.px(hx - 1.5, hy + 4, SOFT);
+      s.px(hx + 0.5, hy + 4, SOFT);
+    }
+  } else if (id === 5) {
+    s.fillRect(hx - 1, hy + 1, 2, 1, c.nose);
+    if (face === "trapped") oMouth(s, hx, hy + 3, true);
+    else if (face === "win") {
+      s.fillRect(hx - 1.5, hy + 2, 4, 3, OUT);
+      s.fillRect(hx - 0.5, hy + 3, 2, 2, MOUTH);
+      s.fillRect(hx - 0.5, hy + 2, 2, 1, PAL.white);
+    } else {
+      s.fillRect(hx - 1, hy + 2, 2, 1, PAL.white); // 앞니
+      s.px(hx - 2.5, hy + 2, SOFT);
+      s.px(hx + 1.5, hy + 2, SOFT);
+    }
+  } else if (id === 6) {
+    s.fillRect(hx - 1, hy + 1, 2, 1, OUT);
+    if (face === "trapped") oMouth(s, hx, hy + 3, true);
+    else if (face === "win") {
+      s.fillRect(hx - 1.5, hy + 2, 4, 2, OUT);
+      s.fillRect(hx - 0.5, hy + 3, 2, 1, MOUTH);
+    } else {
+      s.hLine(hx - 0.5, hy + 3, 2, SOFT);
+    }
+  } else {
+    pengBeak(s, c, hx, hy, face === "trapped" || face === "win");
+  }
+}
+
+/// char4~7 옆모습 얼굴
+function faceSide2(s, id, c, hy) {
+  bigEye(s, 8, hy - 3, id === 6 ? 2 : -1);
+  if (id === 4) {
+    s.disc(6.5, hy + 3, 2.5, c.muzzle[2]);
+    s.fillRect(4, hy + 2, 2, 2, OUT);
+    s.px(7, hy + 5, SOFT);
+    s.fillRect(10, hy + 3, 2, 1, PINK);
+  } else if (id === 5) {
+    s.fillRect(4, hy + 1, 2, 1, c.nose);
+    s.fillRect(4, hy + 2, 2, 1, PAL.white); // 앞니
+    s.px(6, hy + 3, SOFT);
+    s.fillRect(10, hy + 3, 2, 1, BLUSH5);
+  } else if (id === 6) {
+    ball(s, 7.5, hy + 3.5, 2.6, 2.3, c.body); // 도토리 문 볼
+    s.fillRect(4, hy + 1, 2, 1, OUT);
+    s.fillRect(8, hy + 4, 2, 1, PINK);
+  } else {
+    s.hLine(3, hy + 1, 3, c.beak[3]);
+    s.hLine(1, hy + 2, 5, c.beak[2]);
+    s.hLine(3, hy + 3, 3, c.beak[1]);
+    s.fillRect(10, hy + 3, 2, 1, PINK);
+  }
+}
+
+/// char4~7 등 디테일
+function backDetail2(s, id, c, dy) {
+  if (id === 4) {
+    s.disc(15.5, 33.5 + dy, 1.9, c.body[1]); // 짧은 꼬리
+    s.hLine(14.5, 35 + dy, 3, c.body[0]);
+    s.hLine(14.5, 32 + dy, 2, c.body[3]);
+  } else if (id === 5) {
+    s.disc(15.5, 33 + dy, 2.2, c.belly[2]); // 솜뭉치 꼬리
+    s.hLine(14.5, 35 + dy, 3, c.belly[1]);
+  } else if (id === 7) {
+    s.px(11, 27 + dy, c.body[3]); // 등 윤기
+    s.px(12, 26 + dy, c.body[3]);
   }
 }
 
@@ -441,6 +669,7 @@ function drawDown(s, id, o = {}) {
 
   if (id === 1) catTailDown(s, c, dy, false);
   if (id === 3) foxTailDown(s, c, dy, false);
+  if (id === 6) squirrelTailDown(s, c, dy);
 
   ball(s, CX, by, c.br[0], c.br[1], c.body);
   s.ellipse(CX, by + 1.5, c.br[0] - 3, c.br[1] - 3, c.belly[2]);
@@ -470,6 +699,7 @@ function drawUp(s, id, f) {
   if (id === 3) foxTailDown(s, c, dy, true);
   ball(s, CX, hy, c.hr[0], c.hr[1], c.body);
   headDecor(s, id, c, CX, hy, "up");
+  if (id === 6) squirrelTailUp(s, c, dy);
   s.outlineSilhouette(OUT);
 }
 
@@ -488,7 +718,9 @@ function drawSide(s, id, f) {
   }
   if (id === 1) catTailSide(s, c, dy);
   if (id === 3) foxTailSide(s, c, dy);
+  if (id >= 4) sideTail2(s, id, c, dy);
   ball(s, bx, by, c.br[0] - 0.5, c.br[1], c.body);
+  if (id === 7) pengBellySide(s, c, dy);
   sideFeet(s, id, f);
   sideArm(s, c, f, dy);
   ball(s, hx, hy, c.hr[0], c.hr[1], c.body);
@@ -513,6 +745,43 @@ function walkDraw(id, dir, f) {
 
 const sprites = [];
 for (let id = 0; id < 4; id++) {
+  for (const dir of ["down", "up", "left", "right"])
+    for (let f = 0; f < 4; f++)
+      sprites.push({ name: `char${id}_${dir}_${f}`, w: W, h: H, draw: walkDraw(id, dir, f) });
+
+  for (let i = 0; i < 2; i++) {
+    sprites.push({
+      name: `char${id}_trapped_${i}`,
+      w: W,
+      h: H,
+      draw: (s) =>
+        drawDown(s, id, { face: "trapped", arms: "flail", flail: i, tilt: i ? 1 : -1, legs: "spread" }),
+    });
+  }
+  for (let i = 0; i < 2; i++) {
+    sprites.push({
+      name: `char${id}_win_${i}`,
+      w: W,
+      h: H,
+      draw: (s) =>
+        drawDown(s, id, { face: "win", arms: "up", gdy: i ? -2 : 0, legs: i ? "dangle" : "walk" }),
+    });
+  }
+  for (let i = 0; i < 2; i++) {
+    sprites.push({
+      name: `char${id}_dead_${i}`,
+      w: W,
+      h: H,
+      draw: (s) => {
+        drawDown(s, id, { face: "dead", arms: "side", gdy: i ? -1 : 0, haloY: i ? 0 : 1 });
+        fade(s);
+      },
+    });
+  }
+}
+
+// char4~7 — 기존 4종과 동일한 프레임 세트 (22프레임 × 4)
+for (let id = 4; id < 8; id++) {
   for (const dir of ["down", "up", "left", "right"])
     for (let f = 0; f < 4; f++)
       sprites.push({ name: `char${id}_${dir}_${f}`, w: W, h: H, draw: walkDraw(id, dir, f) });

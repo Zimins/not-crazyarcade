@@ -52,13 +52,22 @@ pub struct CharStats {
     pub max_speed_lv: u32,
 }
 
+/// 캐릭터 수 (스프라이트·UI와 동기화)
+pub const NUM_CHARS: u32 = 8;
+
 /// 캐릭터 아키타입 (원작 스탯 분포 패턴 기반, 1~10 스케일).
-/// 0=코코(밸런스/초반형), 1=피코(스피드형), 2=부리(물량형), 3=테라(폭발형)
+/// 0=코코(밸런스/초반형), 1=피코(스피드형), 2=부리(물량형), 3=테라(폭발형),
+/// 4=모카(대기만성형: 시작 최저·캡 최고), 5=푸딩(초반 물량형: 시작 풍선 2),
+/// 6=치치(질주형: 저화력·풍선 캡 높음), 7=펭펭(초반 강세형: 시작 합 최고·캡 최저)
 pub fn char_stats(char_type: u32) -> CharStats {
-    match char_type % 4 {
+    match char_type % NUM_CHARS {
         1 => CharStats { start_balloons: 1, max_balloons: 6, start_range: 1, max_range: 7, start_speed_lv: 5, max_speed_lv: 9 },
         2 => CharStats { start_balloons: 2, max_balloons: 9, start_range: 1, max_range: 6, start_speed_lv: 4, max_speed_lv: 7 },
         3 => CharStats { start_balloons: 1, max_balloons: 7, start_range: 2, max_range: 9, start_speed_lv: 4, max_speed_lv: 8 },
+        4 => CharStats { start_balloons: 1, max_balloons: 9, start_range: 1, max_range: 8, start_speed_lv: 4, max_speed_lv: 8 },
+        5 => CharStats { start_balloons: 2, max_balloons: 8, start_range: 1, max_range: 6, start_speed_lv: 5, max_speed_lv: 8 },
+        6 => CharStats { start_balloons: 1, max_balloons: 8, start_range: 1, max_range: 5, start_speed_lv: 5, max_speed_lv: 9 },
+        7 => CharStats { start_balloons: 1, max_balloons: 6, start_range: 2, max_range: 6, start_speed_lv: 6, max_speed_lv: 7 },
         _ => CharStats { start_balloons: 1, max_balloons: 7, start_range: 2, max_range: 7, start_speed_lv: 5, max_speed_lv: 8 },
     }
 }

@@ -93,7 +93,7 @@ async function recordMatch(request: Request, env: Env): Promise<Response> {
     .bind(
       userId,
       clampInt(body.mapId, 0, 2),
-      clampInt(body.charType, 0, 3),
+      clampInt(body.charType, 0, 7),
       body.won ? 1 : 0,
       body.draw ? 1 : 0,
       clampInt(body.kills, 0, 99)

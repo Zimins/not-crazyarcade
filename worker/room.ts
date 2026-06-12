@@ -7,6 +7,8 @@
 import type { Env } from "./session";
 
 export const MAX_PLAYERS = 6;
+/** 캐릭터 타입 상한 (src/ui/screens.ts CHAR_INFO 길이 - 1과 동기화) */
+const MAX_CHAR_TYPE = 7;
 /** 배치 주기(ms)와 배치당 틱 수 — 60Hz 시뮬레이션 기준 */
 const BATCH_MS = 50;
 const TICKS_PER_BATCH = 3;
@@ -72,7 +74,7 @@ export class RoomDO {
       }
 
       const nickname = (url.searchParams.get("nick") ?? "물풍선").slice(0, 12);
-      const charType = Math.min(3, Math.max(0, Number(url.searchParams.get("char")) || 0));
+      const charType = Math.min(MAX_CHAR_TYPE, Math.max(0, Number(url.searchParams.get("char")) || 0));
 
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
@@ -109,7 +111,7 @@ export class RoomDO {
     switch (msg.t) {
       case "char":
         if (this.status === "waiting") {
-          conn.charType = Math.min(3, Math.max(0, Number(msg.v) || 0));
+          conn.charType = Math.min(MAX_CHAR_TYPE, Math.max(0, Number(msg.v) || 0));
           this.broadcastRoom();
         }
         break;

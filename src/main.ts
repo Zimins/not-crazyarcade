@@ -187,16 +187,17 @@ function gotoSetup(): void {
 
 // ── 솔로(봇전) 매치 ────────────────────────────────────────
 function buildConfig(setup: MatchSetup): MatchConfig {
+  const n = CHAR_INFO.length;
   const players: MatchConfig["players"] = [];
   if (setup.teamMode) {
     players.push({ charType: setup.charType, team: 0, isBot: false });
-    players.push({ charType: (setup.charType + 1) % 4, team: 0, isBot: true });
-    players.push({ charType: (setup.charType + 2) % 4, team: 1, isBot: true });
-    players.push({ charType: (setup.charType + 3) % 4, team: 1, isBot: true });
+    players.push({ charType: (setup.charType + 1) % n, team: 0, isBot: true });
+    players.push({ charType: (setup.charType + 2) % n, team: 1, isBot: true });
+    players.push({ charType: (setup.charType + 3) % n, team: 1, isBot: true });
   } else {
     players.push({ charType: setup.charType, team: 0, isBot: false });
     for (let i = 0; i < setup.botCount; i++) {
-      players.push({ charType: (setup.charType + 1 + i) % 4, team: i + 1, isBot: true });
+      players.push({ charType: (setup.charType + 1 + i) % n, team: i + 1, isBot: true });
     }
   }
   return {
