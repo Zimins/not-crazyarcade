@@ -1343,6 +1343,39 @@ mod tests {
         assert!(g.items.len() <= 1, "같은 칸에 아이템이 2개 쌓이면 안 됨");
     }
 
+    /// 규칙 고정: 물줄기는 소유자를 구분하지 않는다 — 자기 풍선에도 갇힌다.
+    /// (풍선 위에 서 있던 경우와 팔 범위에 서 있던 경우 모두)
+    #[test]
+    fn own_balloon_traps_owner() {
+        // 케이스 1: 자기 풍선 타일 위에 서 있다가 폭발
+        let mut g = setup();
+        g.players[0].x = 0.5;
+        g.players[0].y = 0.5;
+        g.players[1].x = 14.5;
+        g.players[1].y = 0.5;
+        g.players[0].input = IN_ACTION;
+        g.tick();
+        g.players[0].input = 0;
+        tick_n(&mut g, (BALLOON_FUSE / TICK_DT) as usize + 2);
+        assert_eq!(g.players[0].state, PState::Trapped, "자기 풍선 위에서도 갇혀야 함");
+
+        // 케이스 2: 자기 물줄기 팔 범위에 서 있다가 폭발
+        let mut g = setup();
+        for y in 0..MAP_H as i32 {
+            for x in 0..MAP_W as i32 {
+                g.map.set_tile(x, y, Tile::Empty);
+            }
+        }
+        g.players[1].x = 14.5;
+        g.players[1].y = 12.5;
+        g.balloons.push(Balloon { x: 3, y: 1, owner: 0, fuse: 0.05, range: 2, walkthrough: vec![] });
+        g.players[0].balloons_used = 1;
+        g.players[0].x = 5.5; // (5,1) — 자기 풍선의 오른팔 사거리 안
+        g.players[0].y = 1.5;
+        tick_n(&mut g, 5);
+        assert_eq!(g.players[0].state, PState::Trapped, "자기 물줄기 팔에도 갇혀야 함");
+    }
+
     /// 경로로 이어진 풍선은 타이머를 공유한다 (가장 빠른 퓨즈로 동기화)
     #[test]
     fn linked_balloons_share_fuse_timer() {
