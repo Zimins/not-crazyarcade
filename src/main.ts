@@ -5,7 +5,7 @@
 
 import "./style.css";
 import { initWasm, GameSession, type MatchConfig } from "./game/wasm";
-import { parseSnapshot, Phase, Ev, type GameEvent } from "./game/snapshot";
+import { parseSnapshot, Phase, Ev, PlayerState, type GameEvent } from "./game/snapshot";
 import { InputManager } from "./game/input";
 import { sfx, unlockAudio, setMuted, isMuted } from "./game/audio";
 import { loadAllAtlases, type Atlases } from "./render/atlas";
@@ -28,6 +28,7 @@ import {
   isTouchDevice,
   mountTouchControls,
   mountRotateOverlay,
+  preventZoomGestures,
   tryEnterLandscape,
 } from "./ui/touch";
 import {
@@ -42,6 +43,15 @@ const TICK_DT = 1 / 60;
 const MAX_TICKS_PER_FRAME = 5;
 /** 멀티: 이 이상 프레임이 밀리면 빠르게 따라잡기 (틱 수) */
 const NET_CATCHUP_THRESHOLD = 9;
+/** 라운드 제한 시간 (core/src/constants.rs ROUND_SECS와 동기화) */
+const ROUND_TOTAL = 180;
+/** 사망 연출을 보여준 뒤 결과 화면까지의 지연 (ms) */
+const DEATH_RESULT_DELAY = 1400;
+
+function fmtTime(secs: number): string {
+  const s = Math.max(0, Math.round(secs));
+  return `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+}
 
 const app = document.getElementById("app")!;
 let atlases: Atlases;
@@ -242,6 +252,10 @@ function startMatch(setup: MatchSetup): void {
   let accumulator = 0;
   let resultShown = false;
   let started = false;
+  let halted = false;
+  /** 내가 죽은 시점의 경과 시간(초)과 그 순간의 벽시계 */
+  let myDeathElapsed: number | null = null;
+  let myDeathWall = 0;
 
   showBanner(hud.overlay, "READY...");
 
@@ -252,6 +266,17 @@ function startMatch(setup: MatchSetup): void {
     cancelAnimationFrame(raf);
     renderer.dispose();
     session.destroy();
+  };
+
+  const resultActions = {
+    onRetry: () => {
+      endMatch();
+      startMatch(setup);
+    },
+    onLobby: () => {
+      endMatch();
+      gotoSetup();
+    },
   };
 
   const loop = (now: number): void => {
@@ -274,6 +299,12 @@ function startMatch(setup: MatchSetup): void {
     renderer.render(snap, frameDt);
     hud.update(snap, session.localPlayerId, names);
 
+    const me = snap.players.find((p) => p.id === session.localPlayerId);
+    if (myDeathElapsed === null && me?.state === PlayerState.Dead) {
+      myDeathElapsed = ROUND_TOTAL - snap.timeRemaining;
+      myDeathWall = now;
+    }
+
     if (snap.phase === Phase.Playing && !started) {
       started = true;
       showBanner(hud.overlay, "GAME START!!");
@@ -282,12 +313,39 @@ function startMatch(setup: MatchSetup): void {
       }, 900);
     }
 
+    // 봇전: 내가 죽으면 라운드 종료를 기다리지 않고 즉시 종료 (사망 연출 후)
+    if (
+      !resultShown &&
+      snap.phase === Phase.Playing &&
+      myDeathElapsed !== null &&
+      now - myDeathWall > DEATH_RESULT_DELAY
+    ) {
+      resultShown = true;
+      halted = true; // 시뮬 정지 — 봇들끼리의 잔여전 관전 없음
+      playResultSfx("lose");
+      void recordMatch({
+        mapId: snap.mapId,
+        charType: me?.charType ?? 0,
+        won: false,
+        draw: false,
+        kills: me?.kills ?? 0,
+      });
+      showResult(hud.overlay, "lose", {
+        ...resultActions,
+        stats: [`생존 시간 ${fmtTime(myDeathElapsed)}`, `처치 ${me?.kills ?? 0}킬`],
+      });
+    }
+
     if (snap.phase === Phase.RoundOver && !resultShown) {
       resultShown = true;
-      const me = snap.players.find((p) => p.id === session.localPlayerId);
       const myTeam = me?.team ?? 0;
       const result: "win" | "lose" | "draw" =
         snap.winnerTeam === -2 ? "draw" : snap.winnerTeam === myTeam ? "win" : "lose";
+      const finishElapsed = ROUND_TOTAL - snap.timeRemaining;
+      const stats =
+        result === "win"
+          ? [`승리 시간 ${fmtTime(finishElapsed)}`, `처치 ${me?.kills ?? 0}킬`]
+          : [`생존 시간 ${fmtTime(myDeathElapsed ?? finishElapsed)}`, `처치 ${me?.kills ?? 0}킬`];
       playResultSfx(result);
       void recordMatch({
         mapId: snap.mapId,
@@ -297,20 +355,11 @@ function startMatch(setup: MatchSetup): void {
         kills: me?.kills ?? 0,
       });
       setTimeout(() => {
-        showResult(hud.overlay, result, {
-          onRetry: () => {
-            endMatch();
-            startMatch(setup);
-          },
-          onLobby: () => {
-            endMatch();
-            gotoSetup();
-          },
-        });
+        showResult(hud.overlay, result, { ...resultActions, stats });
       }, 700);
     }
 
-    raf = requestAnimationFrame(loop);
+    if (!halted) raf = requestAnimationFrame(loop);
   };
 
   raf = requestAnimationFrame(loop);
@@ -402,6 +451,7 @@ function startNetMatch(
   let resultShown = false;
   let started = false;
   let ended = false;
+  let myDeathElapsed: number | null = null;
 
   showBanner(hud.overlay, "READY...");
 
@@ -471,11 +521,20 @@ function startNetMatch(
       }, 900);
     }
 
+    const me = snap.players.find((p) => p.id === session.localPlayerId);
+    if (myDeathElapsed === null && me?.state === PlayerState.Dead) {
+      myDeathElapsed = ROUND_TOTAL - snap.timeRemaining;
+    }
+
     if (snap.phase === Phase.RoundOver && !resultShown) {
       resultShown = true;
-      const me = snap.players.find((p) => p.id === session.localPlayerId);
       const result: "win" | "lose" | "draw" =
         snap.winnerTeam === -2 ? "draw" : snap.winnerTeam === (me?.team ?? -99) ? "win" : "lose";
+      const finishElapsed = ROUND_TOTAL - snap.timeRemaining;
+      const stats =
+        result === "win"
+          ? [`승리 시간 ${fmtTime(finishElapsed)}`, `처치 ${me?.kills ?? 0}킬`]
+          : [`생존 시간 ${fmtTime(myDeathElapsed ?? finishElapsed)}`, `처치 ${me?.kills ?? 0}킬`];
       playResultSfx(result);
       // 호스트(게임 참가자 중 최저 슬롯)가 서버에 결과 보고 → 방이 대기 상태로 복귀
       if (mySlot === Math.min(...players.map((p) => p.slot))) {
@@ -495,6 +554,7 @@ function startNetMatch(
             backToRoom();
           },
           lobbyLabel: "대기실로",
+          stats,
         });
       }, 700);
     }
@@ -511,6 +571,7 @@ async function boot(): Promise<void> {
   await Promise.all([initWasm(), loadAllAtlases().then((a) => (atlases = a)), restoreSession()]);
   mountTopbar();
   mountRotateOverlay();
+  if (isTouchDevice()) preventZoomGestures();
   gotoTitle();
 }
 

@@ -125,3 +125,24 @@ export function mountRotateOverlay(): void {
   overlay.innerHTML = "📱<br>기기를 가로로 돌려주세요";
   document.body.append(overlay);
 }
+
+/**
+ * 더블탭/핀치 줌 차단 (CSS touch-action: manipulation의 JS 이중 방어).
+ * 구형 iOS Safari는 CSS만으로 안 막히는 경우가 있어 이벤트 차단을 병행한다.
+ */
+export function preventZoomGestures(): void {
+  document.addEventListener("dblclick", (e) => e.preventDefault(), { passive: false });
+  // iOS 전용 핀치 제스처
+  document.addEventListener("gesturestart", (e) => e.preventDefault());
+  // 300ms 내 연속 터치(더블탭) 차단 — 버튼/링크 동작은 첫 탭에서 이미 발화됨
+  let lastTouchEnd = 0;
+  document.addEventListener(
+    "touchend",
+    (e) => {
+      const now = Date.now();
+      if (now - lastTouchEnd < 300) e.preventDefault();
+      lastTouchEnd = now;
+    },
+    { passive: false }
+  );
+}

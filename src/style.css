@@ -24,6 +24,12 @@ body {
   height: 100%;
 }
 
+html,
+body {
+  /* 더블탭 줌 차단 (패닝·핀치만 허용) — 모바일 브라우저 표준 해법 */
+  touch-action: manipulation;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -31,6 +37,7 @@ body {
   image-rendering: pixelated;
   overflow: hidden;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #app {
@@ -343,6 +350,16 @@ canvas.board {
   text-shadow:
     3px 3px 0 #555,
     6px 6px 0 rgba(0, 0, 0, 0.4);
+}
+
+.overlay .result-stats {
+  background: rgba(34, 28, 68, 0.92);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 22px;
+  font-size: 16px;
+  line-height: 1.7;
+  text-align: center;
 }
 
 .overlay .actions {

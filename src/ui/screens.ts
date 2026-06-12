@@ -541,15 +541,20 @@ export function clearOverlay(overlay: HTMLElement): void {
   overlay.innerHTML = "";
 }
 
-/** 결과 오버레이 — onRetry 미지정 시(멀티) 다시하기 버튼 생략 */
+/** 결과 오버레이 — onRetry 미지정 시(멀티) 다시하기 버튼 생략, stats로 스코어 표시 */
 export function showResult(
   overlay: HTMLElement,
   result: "win" | "lose" | "draw",
-  opts: { onRetry?: () => void; onLobby: () => void; lobbyLabel?: string }
+  opts: { onRetry?: () => void; onLobby: () => void; lobbyLabel?: string; stats?: string[] }
 ): void {
   overlay.innerHTML = "";
   const text = result === "win" ? "WIN!" : result === "lose" ? "LOSE..." : "DRAW";
   overlay.append(el("div", `banner ${result === "win" ? "win" : result === "lose" ? "lose" : ""}`, text));
+  if (opts.stats && opts.stats.length > 0) {
+    const box = el("div", "result-stats");
+    for (const line of opts.stats) box.append(el("div", undefined, line));
+    overlay.append(box);
+  }
   const actions = el("div", "actions");
   if (opts.onRetry) {
     const retry = el("button", "primary", "다시하기");
