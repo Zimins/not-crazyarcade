@@ -3,6 +3,11 @@ main = "worker/index.ts"
 compatibility_date = "2026-01-01"
 account_id = "21e54ab80500ec6f34785e4e17fb40be"
 
+# 커스텀 도메인 (lightsoft.dev 존이 같은 계정에 있어야 동작)
+routes = [
+  { pattern = "not-crazyarcade.lightsoft.dev", custom_domain = true }
+]
+
 # 정적 게임 빌드 (Workers + Static Assets)
 [assets]
 directory = "dist"

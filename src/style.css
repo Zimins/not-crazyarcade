@@ -105,13 +105,14 @@ input[type="text"]:focus {
 }
 
 .logo .title {
-  font-size: 56px;
+  font-size: clamp(30px, 5.5vw, 46px);
   font-weight: 700;
   color: var(--accent-2);
   text-shadow:
     3px 3px 0 #b3541e,
     6px 6px 0 rgba(0, 0, 0, 0.35);
-  letter-spacing: 2px;
+  letter-spacing: 1px;
+  white-space: nowrap;
 }
 
 .logo .subtitle {

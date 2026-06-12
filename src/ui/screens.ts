@@ -81,7 +81,7 @@ export function titleScreen(opts: {
   const root = el("div", "screen");
 
   const logo = el("div", "logo");
-  const title = el("div", "title", "SPLASH ARENA");
+  const title = el("div", "title", "NOT-CRAZYARCADE");
   const subtitle = el("div", "subtitle", "물풍선 액션 아케이드 — 가두고, 구하고, 터뜨려라!");
   logo.append(title, subtitle);
 
