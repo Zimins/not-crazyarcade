@@ -121,4 +121,10 @@ export const sfx = {
   itemDestroyed(): void {
     noise(0.08, 0.12, 0, 4000);
   },
+  /** 아이템 보급: 떨어지는 휘파람 + 착지 블립 */
+  airdrop(): void {
+    tone(1100, 0.4, "triangle", 0.16, 0, 350);
+    tone(520, 0.08, "square", 0.18, 0.4);
+    tone(780, 0.1, "square", 0.14, 0.46);
+  },
 };

@@ -200,6 +200,7 @@ pub const EV_ROUND_START: f32 = 9.0;
 pub const EV_ROUND_END: f32 = 10.0;
 pub const EV_NEEDLE_ESCAPE: f32 = 11.0;
 pub const EV_ITEM_DESTROYED: f32 = 12.0;
+pub const EV_AIRDROP: f32 = 13.0;
 
 pub struct Event {
     pub kind: f32,
@@ -242,6 +243,8 @@ pub struct Game {
     pub tick_no: u64,
     /// -1=진행중, -2=무승부, 그 외=승리 팀
     pub winner_team: i32,
+    /// 다음 아이템 보급 인덱스 (AIRDROP_TIMES)
+    airdrop_idx: usize,
     snapshot_buf: Vec<f32>,
 }
 
@@ -264,6 +267,7 @@ impl Game {
             elapsed: 0.0,
             tick_no: 0,
             winner_team: -1,
+            airdrop_idx: 0,
             snapshot_buf: Vec::with_capacity(1024),
         }
     }
@@ -445,6 +449,7 @@ impl Game {
             Phase::Playing => {
                 self.elapsed += TICK_DT;
                 self.time_remaining -= TICK_DT;
+                self.tick_airdrop();
                 self.run_ai();
                 self.tick_players();
                 self.tick_balloons();
@@ -696,18 +701,7 @@ impl Game {
             self.map.set_tile(bx, by, Tile::Empty);
             self.push_event(EV_BLOCK_BREAK, bx as f32 + 0.5, by as f32 + 0.5, 0.0);
             if self.rng.chance(ITEM_DROP_RATE) {
-                let roll = self.rng.next_f32();
-                let kind = if roll < 0.30 {
-                    ItemType::BalloonUp
-                } else if roll < 0.60 {
-                    ItemType::RangeUp
-                } else if roll < 0.85 {
-                    ItemType::SpeedUp
-                } else if roll < 0.97 {
-                    ItemType::Needle
-                } else {
-                    ItemType::MaxRange
-                };
+                let kind = self.roll_item();
                 self.items.push(GroundItem {
                     x: bx,
                     y: by,
@@ -742,6 +736,60 @@ impl Game {
         });
         for (x, y) in destroyed {
             self.push_event(EV_ITEM_DESTROYED, x, y, 0.0);
+        }
+    }
+
+    /// 아이템 종류 가중치 추첨 (블록 드랍·공중 보급 공용)
+    fn roll_item(&mut self) -> ItemType {
+        let roll = self.rng.next_f32();
+        if roll < 0.30 {
+            ItemType::BalloonUp
+        } else if roll < 0.60 {
+            ItemType::RangeUp
+        } else if roll < 0.85 {
+            ItemType::SpeedUp
+        } else if roll < 0.97 {
+            ItemType::Needle
+        } else {
+            ItemType::MaxRange
+        }
+    }
+
+    /// 아이템 보급: 정해진 시각마다 빈 칸에 아이템을 떨어뜨린다.
+    /// 블록이 다 부서진 후반에도 파밍 거리가 남아 게임이 루즈해지지 않게 하는 장치 (원작의 아이템 비행기).
+    fn tick_airdrop(&mut self) {
+        if self.airdrop_idx >= AIRDROP_TIMES.len()
+            || self.time_remaining > AIRDROP_TIMES[self.airdrop_idx]
+        {
+            return;
+        }
+        self.airdrop_idx += 1;
+        for _ in 0..AIRDROP_COUNT {
+            // 후보: 빈 타일 + 풍선/기존 아이템 없는 곳
+            let mut candidates: Vec<(i32, i32)> = Vec::new();
+            for y in 0..MAP_H as i32 {
+                for x in 0..MAP_W as i32 {
+                    if self.map.tile(x, y) == Tile::Empty
+                        && !self.balloons.iter().any(|b| b.x == x && b.y == y)
+                        && !self.items.iter().any(|it| it.x == x && it.y == y)
+                    {
+                        candidates.push((x, y));
+                    }
+                }
+            }
+            if candidates.is_empty() {
+                return;
+            }
+            let (x, y) = candidates[self.rng.next_range(candidates.len() as u32) as usize];
+            let kind = self.roll_item();
+            self.items.push(GroundItem {
+                x,
+                y,
+                kind,
+                // 착지 순간 물줄기에 바로 증발하지 않게 잠깐 보호
+                protect_until: self.elapsed + STREAM_SECS + 0.05,
+            });
+            self.push_event(EV_AIRDROP, x as f32 + 0.5, y as f32 + 0.5, kind.code());
         }
     }
 
@@ -1230,6 +1278,46 @@ mod tests {
             .count();
         assert_eq!(breaks, 1, "같은 블록 파괴 이벤트는 1회여야 함");
         assert!(g.items.len() <= 1, "같은 칸에 아이템이 2개 쌓이면 안 됨");
+    }
+
+    #[test]
+    fn airdrop_spawns_items_on_schedule() {
+        let mut g = setup();
+        g.players[0].x = 0.5;
+        g.players[0].y = 0.5;
+        g.players[1].x = 14.5;
+        g.players[1].y = 0.5;
+        // 첫 보급 직전으로 시간 이동 → 1초 진행하면 보급 발생
+        g.time_remaining = AIRDROP_TIMES[0] + 0.5;
+        let before = g.items.len();
+        tick_n(&mut g, 60);
+        assert_eq!(g.items.len(), before + AIRDROP_COUNT, "보급 아이템 2개 등장");
+        assert!(
+            g.events.iter().filter(|e| e.kind == EV_AIRDROP).count() == AIRDROP_COUNT,
+            "보급 이벤트 발생"
+        );
+        // 같은 시각에 중복 발동하지 않음
+        tick_n(&mut g, 60);
+        assert_eq!(g.items.len(), before + AIRDROP_COUNT);
+
+        // 다음 시각 도달 시 또 보급
+        g.time_remaining = AIRDROP_TIMES[1] + 0.5;
+        tick_n(&mut g, 60);
+        assert_eq!(g.items.len(), before + AIRDROP_COUNT * 2);
+    }
+
+    #[test]
+    fn airdrop_lands_on_empty_walkable_cells() {
+        let mut g = setup();
+        g.players[0].x = 0.5;
+        g.players[0].y = 0.5;
+        g.players[1].x = 14.5;
+        g.players[1].y = 0.5;
+        g.time_remaining = AIRDROP_TIMES[0] + 0.5;
+        tick_n(&mut g, 60);
+        for it in &g.items {
+            assert_eq!(g.map.tile(it.x, it.y), Tile::Empty, "보급은 빈 칸에만");
+        }
     }
 
     #[test]

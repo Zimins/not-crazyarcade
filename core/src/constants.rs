@@ -47,3 +47,9 @@ pub const HARD_MAX_SPEED_LV: u32 = 10;
 
 /// 봇 AI 사고 주기 (초)
 pub const AI_THINK_INTERVAL: f32 = 0.12;
+
+/// 아이템 보급 시각 (남은 시간 기준, 초) — 원작 아이템 비행기 타이밍 차용.
+/// 블록이 다 부서진 후반에도 아이템이 계속 등장해 루즈해지지 않게 한다.
+pub const AIRDROP_TIMES: [f32; 6] = [119.0, 96.0, 74.0, 51.0, 29.0, 7.0];
+/// 보급 회당 아이템 수
+pub const AIRDROP_COUNT: usize = 2;

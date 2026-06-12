@@ -107,6 +107,7 @@ export class Renderer {
         case Ev.Pickup:
         case Ev.Rescue:
         case Ev.NeedleEscape:
+        case Ev.Airdrop:
           this.fx.push({ kind: "spark", x: e.x, y: e.y, t: 0 });
           break;
         case Ev.Explode:

@@ -33,6 +33,7 @@ export const enum Ev {
   RoundEnd = 10,
   NeedleEscape = 11,
   ItemDestroyed = 12,
+  Airdrop = 13,
 }
 
 export interface PlayerView {

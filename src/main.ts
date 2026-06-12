@@ -123,6 +123,9 @@ function handleSfxEvents(events: GameEvent[]): void {
       case Ev.ItemDestroyed:
         sfx.itemDestroyed();
         break;
+      case Ev.Airdrop:
+        sfx.airdrop();
+        break;
       default:
         break;
     }
