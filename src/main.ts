@@ -377,6 +377,10 @@ async function enterRoom(code: string): Promise<void> {
   const conn = new RoomConnection();
   let lastRoom: RoomState | null = null;
   let inGame = false;
+  /** 진행 중(또는 결과 화면) 매치의 정리 함수 — 새 start 수신 시 강제 정리용 */
+  let teardown: (() => void) | null = null;
+  /** room 메시지보다 start가 먼저 도착한 경우의 버퍼 */
+  let pendingStart: StartInfo | null = null;
 
   const refs = roomScreen(atlases, {
     onChar: (v) => conn.sendChar(v),
@@ -390,20 +394,34 @@ async function enterRoom(code: string): Promise<void> {
 
   const backToRoom = (): void => {
     inGame = false;
+    teardown = null;
     swapScreen(refs.root);
     if (lastRoom) refs.update(lastRoom);
+  };
+
+  const beginMatch = (info: StartInfo): void => {
+    if (!lastRoom) {
+      pendingStart = info; // 슬롯 정보(you)가 아직 없음 — room 수신 후 진입
+      return;
+    }
+    // 이전 판 결과 화면에 머물러 있어도 시작 이벤트를 버리지 않는다:
+    // 기존 매치를 정리하고 새 매치로 강제 진입
+    teardown?.();
+    inGame = true;
+    teardown = startNetMatch(conn, info, lastRoom.you, backToRoom);
   };
 
   conn.callbacks = {
     onRoom: (room) => {
       lastRoom = room;
       if (!inGame) refs.update(room);
+      if (pendingStart) {
+        const info = pendingStart;
+        pendingStart = null;
+        beginMatch(info);
+      }
     },
-    onStart: (info) => {
-      if (inGame || !lastRoom) return;
-      inGame = true;
-      startNetMatch(conn, info, lastRoom.you, backToRoom);
-    },
+    onStart: beginMatch,
     onClose: () => {
       if (!inGame) {
         showMessage("방 연결이 끊어졌습니다");
@@ -418,12 +436,13 @@ async function enterRoom(code: string): Promise<void> {
 }
 
 /** 락스텝 네트워크 매치: 서버 입력 프레임을 소비하며 결정적 시뮬 재생 */
+/** 반환값: 매치 정리 함수 (다음 start 강제 진입 시 호출됨) */
 function startNetMatch(
   conn: RoomConnection,
   info: StartInfo,
   mySlot: number,
   backToRoom: () => void
-): void {
+): () => void {
   const players = [...info.players].sort((a, b) => a.slot - b.slot);
   const myIndex = Math.max(0, players.findIndex((p) => p.slot === mySlot));
   const cfg: MatchConfig = {
@@ -570,6 +589,7 @@ function startNetMatch(
   };
 
   raf = requestAnimationFrame(loop);
+  return endMatch;
 }
 
 // ── 부트스트랩 ─────────────────────────────────────────────

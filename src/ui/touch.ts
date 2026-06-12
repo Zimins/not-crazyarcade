@@ -134,6 +134,10 @@ export function preventZoomGestures(): void {
   document.addEventListener("dblclick", (e) => e.preventDefault(), { passive: false });
   // iOS 전용 핀치 제스처
   document.addEventListener("gesturestart", (e) => e.preventDefault());
+  // 롱프레스 컨텍스트 메뉴 차단 (텍스트 입력창은 붙여넣기 등 허용)
+  document.addEventListener("contextmenu", (e) => {
+    if (!(e.target instanceof HTMLInputElement)) e.preventDefault();
+  });
   // 300ms 내 연속 터치(더블탭) 차단 — 버튼/링크 동작은 첫 탭에서 이미 발화됨
   let lastTouchEnd = 0;
   document.addEventListener(
