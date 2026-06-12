@@ -111,7 +111,8 @@ export class Renderer {
           this.fx.push({ kind: "spark", x: e.x, y: e.y, t: 0 });
           break;
         case Ev.Explode:
-          // 폭발 자체는 stream 셀로 그려짐
+          // 풍선 터짐을 명확히: 셀마다 팝 링 연출 (연쇄 동시 폭발 가독성)
+          this.fx.push({ kind: "pop", x: e.x, y: e.y, t: 0 });
           break;
         default:
           break;

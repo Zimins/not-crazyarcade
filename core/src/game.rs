@@ -1280,6 +1280,97 @@ mod tests {
         assert!(g.items.len() <= 1, "같은 칸에 아이템이 2개 쌓이면 안 됨");
     }
 
+    /// 실제 설치 경로로 연쇄 검증: 먼저 놓은 풍선이 터질 때 사거리 안의
+    /// 나중 풍선(퓨즈 남음)이 "같은 틱에" 함께 터져야 한다
+    #[test]
+    fn chain_explodes_simultaneously_via_real_placement() {
+        let mut g = setup();
+        for y in 0..MAP_H as i32 {
+            for x in 0..MAP_W as i32 {
+                g.map.set_tile(x, y, Tile::Empty);
+            }
+        }
+        g.players[1].x = 13.5;
+        g.players[1].y = 11.5;
+        let p = &mut g.players[0];
+        p.max_balloons = 3;
+        p.range = 1;
+
+        // A를 (3,0)에 설치
+        g.players[0].x = 3.5;
+        g.players[0].y = 0.5;
+        g.players[0].input = IN_ACTION;
+        g.tick();
+        g.players[0].input = 0;
+        // 1초 뒤 B를 (4,0)에 설치 (A 퓨즈 2.0초 남음, B는 3.0초)
+        tick_n(&mut g, 60);
+        g.players[0].x = 4.5;
+        g.players[0].y = 0.5;
+        g.players[0].input = IN_ACTION;
+        g.tick();
+        g.players[0].input = 0;
+        // 멀리 대피
+        g.players[0].x = 8.5;
+        g.players[0].y = 5.5;
+
+        assert_eq!(g.balloons.len(), 2);
+        // 풍선 수가 2 → 0 으로 한 번에 줄어야 함 (1이 관측되면 연쇄 실패)
+        let mut saw_one = false;
+        for _ in 0..(4.0 / TICK_DT) as usize {
+            g.tick();
+            if g.balloons.len() == 1 {
+                saw_one = true;
+            }
+            if g.balloons.is_empty() {
+                break;
+            }
+        }
+        assert!(g.balloons.is_empty(), "두 풍선 모두 터져야 함");
+        assert!(!saw_one, "연쇄는 같은 틱에 동시에 — 풍선이 1개만 남는 순간이 있으면 안 됨");
+    }
+
+    /// 3연쇄: A(r1) → B(r1) → C(r1) 일렬, 전부 같은 틱에
+    #[test]
+    fn triple_chain_via_real_placement() {
+        let mut g = setup();
+        for y in 0..MAP_H as i32 {
+            for x in 0..MAP_W as i32 {
+                g.map.set_tile(x, y, Tile::Empty);
+            }
+        }
+        g.players[1].x = 13.5;
+        g.players[1].y = 11.5;
+        g.players[0].max_balloons = 3;
+        g.players[0].range = 1;
+
+        for (i, x) in [3, 4, 5].iter().enumerate() {
+            g.players[0].x = *x as f32 + 0.5;
+            g.players[0].y = 0.5;
+            g.players[0].input = IN_ACTION;
+            g.tick();
+            g.players[0].input = 0;
+            if i < 2 {
+                tick_n(&mut g, 30); // 0.5초 간격 설치
+            }
+        }
+        g.players[0].x = 9.5;
+        g.players[0].y = 5.5;
+
+        assert_eq!(g.balloons.len(), 3);
+        let mut partial = false;
+        for _ in 0..(4.0 / TICK_DT) as usize {
+            g.tick();
+            if g.balloons.len() == 1 || g.balloons.len() == 2 {
+                partial = true;
+            }
+            if g.balloons.is_empty() {
+                break;
+            }
+        }
+        assert!(g.balloons.is_empty(), "세 풍선 모두 터져야 함");
+        assert!(!partial, "3연쇄가 같은 틱에 일어나야 함");
+    }
+
     #[test]
     fn airdrop_spawns_items_on_schedule() {
         let mut g = setup();
