@@ -24,6 +24,9 @@ export class InputManager {
   private dirStack: number[] = [];
   /** 눌려 있는 액션 키 코드들 (여러 개 동시 입력 대응) */
   private actionKeys = new Set<string>();
+  /** 터치 가상 패드 입력 (모바일) — 방향 비트 1개 또는 0 */
+  private virtualDir = 0;
+  private virtualAction = false;
   private attached = false;
 
   private onKeyDown = (e: KeyboardEvent) => {
@@ -51,7 +54,19 @@ export class InputManager {
   private onBlur = () => {
     this.dirStack = [];
     this.actionKeys.clear();
+    this.virtualDir = 0;
+    this.virtualAction = false;
   };
+
+  /** 터치 패드에서 호출 — 방향 비트(IN_*) 1개 또는 0 */
+  setVirtualDir(bit: number): void {
+    this.virtualDir = bit;
+  }
+
+  /** 터치 액션 버튼에서 호출 */
+  setVirtualAction(on: boolean): void {
+    this.virtualAction = on;
+  }
 
   attach(): void {
     if (this.attached) return;
@@ -70,9 +85,11 @@ export class InputManager {
     this.attached = false;
   }
 
-  /** 코어로 보낼 비트마스크 (방향은 최신 1개만) */
+  /** 코어로 보낼 비트마스크 (방향은 최신 1개만, 터치 패드 우선) */
   bitmask(): number {
-    const dir = this.dirStack.length > 0 ? this.dirStack[this.dirStack.length - 1] : 0;
-    return dir | (this.actionKeys.size > 0 ? IN_ACTION : 0);
+    const keyDir = this.dirStack.length > 0 ? this.dirStack[this.dirStack.length - 1] : 0;
+    const dir = this.virtualDir || keyDir;
+    const action = this.actionKeys.size > 0 || this.virtualAction;
+    return dir | (action ? IN_ACTION : 0);
   }
 }

@@ -38,6 +38,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow-y: auto; /* 모바일 가로처럼 낮은 화면에서 메뉴 스크롤 허용 */
+}
+
+#app > .screen {
+  margin: auto; /* 내용이 화면보다 길 때 위가 잘리지 않게 */
 }
 
 button {
@@ -388,6 +393,141 @@ canvas.board {
 .room-row button:disabled {
   opacity: 0.5;
   cursor: default;
+}
+
+/* ── 모바일 터치 컨트롤 ── */
+.touch-controls {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.tc-pad {
+  position: absolute;
+  left: max(14px, env(safe-area-inset-left));
+  bottom: max(14px, env(safe-area-inset-bottom));
+  width: 156px;
+  height: 156px;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+}
+
+.tc-arm {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  background: rgba(34, 28, 68, 0.55);
+  border: 2px solid rgba(74, 63, 134, 0.85);
+  color: rgba(240, 236, 255, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  border-radius: 10px;
+}
+
+.tc-up {
+  left: 52px;
+  top: 0;
+}
+.tc-down {
+  left: 52px;
+  bottom: 0;
+}
+.tc-left {
+  left: 0;
+  top: 52px;
+}
+.tc-right {
+  right: 0;
+  top: 52px;
+}
+
+.tc-pad[data-dir="up"] .tc-up,
+.tc-pad[data-dir="down"] .tc-down,
+.tc-pad[data-dir="left"] .tc-left,
+.tc-pad[data-dir="right"] .tc-right {
+  background: rgba(46, 157, 240, 0.75);
+  border-color: #7fd4ff;
+  color: #fff;
+}
+
+.tc-action {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(26px, env(safe-area-inset-bottom));
+  width: 92px;
+  height: 92px;
+  border-radius: 50%;
+  background: rgba(46, 157, 240, 0.45);
+  border: 3px solid rgba(127, 212, 255, 0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 36px;
+  pointer-events: auto;
+  touch-action: none;
+  user-select: none;
+}
+
+.tc-action.pressed {
+  background: rgba(46, 157, 240, 0.9);
+  transform: scale(0.94);
+}
+
+/* ── 세로 방향 안내 (게임 중 + 터치 기기 + 세로일 때만) ── */
+.rotate-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 20px;
+  text-align: center;
+  line-height: 1.8;
+  align-items: center;
+  justify-content: center;
+}
+
+@media (orientation: portrait) and (pointer: coarse) {
+  body.in-game .rotate-overlay {
+    display: flex;
+  }
+}
+
+/* ── 낮은 화면(모바일 가로) 컴팩트 레이아웃 ── */
+@media (max-height: 540px) {
+  .game-layout {
+    gap: 8px;
+    padding: 6px;
+  }
+  .hud {
+    width: 148px;
+    gap: 6px;
+  }
+  .hud .timer {
+    font-size: 20px;
+    padding: 4px;
+  }
+  .hud .player-slot {
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+  .hud .stats {
+    padding: 6px;
+    gap: 4px;
+    font-size: 12px;
+  }
+  .hud .stats .stat canvas {
+    width: 18px;
+    height: 18px;
+  }
+  body.in-game .topbar {
+    display: none; /* 게임 중 화면 확보 */
+  }
 }
 
 .topbar {

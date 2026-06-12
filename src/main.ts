@@ -25,6 +25,12 @@ import {
 } from "./ui/screens";
 import { restoreSession, guestLogin, currentUser, recordMatch } from "./auth/client";
 import {
+  isTouchDevice,
+  mountTouchControls,
+  mountRotateOverlay,
+  tryEnterLandscape,
+} from "./ui/touch";
+import {
   fetchRooms,
   createRoom,
   RoomConnection,
@@ -217,6 +223,13 @@ function startMatch(setup: MatchSetup): void {
   const input = new InputManager();
   input.attach();
 
+  document.body.classList.add("in-game");
+  let touchCleanup: (() => void) | null = null;
+  if (isTouchDevice()) {
+    touchCleanup = mountTouchControls(hud.root, input);
+    void tryEnterLandscape();
+  }
+
   const names = cfg.players.map((p, i) =>
     i === 0 ? (currentUser()?.nickname ?? "나") : `${CHAR_INFO[p.charType].name}봇`
   );
@@ -230,6 +243,8 @@ function startMatch(setup: MatchSetup): void {
   showBanner(hud.overlay, "READY...");
 
   const endMatch = (): void => {
+    document.body.classList.remove("in-game");
+    touchCleanup?.();
     input.detach();
     cancelAnimationFrame(raf);
     renderer.dispose();
@@ -366,6 +381,13 @@ function startNetMatch(
   const input = new InputManager();
   input.attach();
 
+  document.body.classList.add("in-game");
+  let touchCleanup: (() => void) | null = null;
+  if (isTouchDevice()) {
+    touchCleanup = mountTouchControls(hud.root, input);
+    void tryEnterLandscape();
+  }
+
   const names: string[] = players.map((p) => p.nickname);
 
   // 틱 단위 입력 큐 (서버 배치를 펼쳐서 적재)
@@ -383,6 +405,8 @@ function startNetMatch(
   const endMatch = (): void => {
     if (ended) return;
     ended = true;
+    document.body.classList.remove("in-game");
+    touchCleanup?.();
     input.detach();
     cancelAnimationFrame(raf);
     renderer.dispose();
@@ -483,6 +507,7 @@ async function boot(): Promise<void> {
   showMessage("물풍선에 물 채우는 중...");
   await Promise.all([initWasm(), loadAllAtlases().then((a) => (atlases = a)), restoreSession()]);
   mountTopbar();
+  mountRotateOverlay();
   gotoTitle();
 }
 

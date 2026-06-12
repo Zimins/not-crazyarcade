@@ -75,15 +75,17 @@ export class Renderer {
     window.removeEventListener("resize", this.onResize);
   }
 
-  /** CSS 정수 배율 스케일 (devicePixelRatio 고려) */
+  /** CSS 배율 스케일 — 물리 픽셀 정수 정렬 (devicePixelRatio 단위) */
   private applyScale(): void {
     const parent = this.canvas.parentElement;
     if (!parent) return;
     const availW = parent.clientWidth || window.innerWidth;
     const availH = parent.clientHeight || window.innerHeight;
     const dpr = window.devicePixelRatio || 1;
-    // CSS 픽셀 기준 최대 정수 배율 (물리 픽셀 정렬을 위해 1/dpr 단위 허용)
-    let scale = Math.max(1, Math.floor(Math.min(availW / BOARD_W, availH / BOARD_H) * dpr) / dpr);
+    // 확대(>=1)는 물리 픽셀 정수 배율로 크리스프하게,
+    // 축소(<1, 모바일 가로 등)는 화면에 꽉 차도록 비정수 허용
+    const raw = Math.min(availW / BOARD_W, availH / BOARD_H);
+    const scale = raw >= 1 ? Math.max(1, Math.floor(raw * dpr) / dpr) : raw;
     this.canvas.style.width = `${BOARD_W * scale}px`;
     this.canvas.style.height = `${BOARD_H * scale}px`;
     // 컨텍스트 상태는 width 대입 시 리셋되므로 매번 재설정
