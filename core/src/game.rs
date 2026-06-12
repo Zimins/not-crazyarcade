@@ -609,12 +609,75 @@ impl Game {
         for b in &mut self.balloons {
             b.fuse -= TICK_DT;
         }
+        self.sync_linked_fuses();
         // 연쇄 폭발: fuse<=0 인 풍선부터 시작해 물줄기에 닿는 풍선 전파
         loop {
             let Some(start) = self.balloons.iter().position(|b| b.fuse <= 0.0) else {
                 break;
             };
             self.explode_chain(start);
+        }
+    }
+
+    /// 물줄기 경로로 이어진 풍선들은 타이머를 공유한다 — 연결 그룹의 가장 빠른
+    /// 퓨즈로 동기화. "터질 때 연쇄"가 아니라 타이머가 같이 도는 모델이라,
+    /// 깜빡임(점멸)도 폭발도 그룹 전체가 함께 간다. 매 틱 재계산하므로
+    /// 새 풍선 설치·블록 파괴로 경로가 새로 이어지는 순간부터 동기화된다.
+    fn sync_linked_fuses(&mut self) {
+        let n = self.balloons.len();
+        if n < 2 {
+            return;
+        }
+        let info: Vec<(i32, i32, u32)> =
+            self.balloons.iter().map(|b| (b.x, b.y, b.range)).collect();
+        let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+        for i in 0..n {
+            let (bx, by, range) = info[i];
+            for (dx, dy) in [(1, 0), (-1, 0), (0, 1), (0, -1)] {
+                for d in 1..=range as i32 {
+                    let (cx, cy) = (bx + dx * d, by + dy * d);
+                    let tile = self.map.tile(cx, cy);
+                    if tile == Tile::Hard {
+                        break;
+                    }
+                    if let Some(j) = info.iter().position(|&(x, y, _)| x == cx && y == cy) {
+                        adj[i].push(j);
+                        adj[j].push(i); // 한쪽 경로만 닿아도 양방향 링크
+                        break; // 물줄기는 풍선에 막힘
+                    }
+                    if tile == Tile::Soft {
+                        break;
+                    }
+                }
+            }
+        }
+        // 연결 요소별 최소 퓨즈 공유
+        let mut visited = vec![false; n];
+        for s in 0..n {
+            if visited[s] {
+                continue;
+            }
+            visited[s] = true;
+            let mut comp = vec![s];
+            let mut k = 0;
+            while k < comp.len() {
+                for &nb in &adj[comp[k]].clone() {
+                    if !visited[nb] {
+                        visited[nb] = true;
+                        comp.push(nb);
+                    }
+                }
+                k += 1;
+            }
+            if comp.len() > 1 {
+                let min = comp
+                    .iter()
+                    .map(|&i| self.balloons[i].fuse)
+                    .fold(f32::INFINITY, f32::min);
+                for &i in &comp {
+                    self.balloons[i].fuse = min;
+                }
+            }
         }
     }
 
@@ -1278,6 +1341,82 @@ mod tests {
             .count();
         assert_eq!(breaks, 1, "같은 블록 파괴 이벤트는 1회여야 함");
         assert!(g.items.len() <= 1, "같은 칸에 아이템이 2개 쌓이면 안 됨");
+    }
+
+    /// 경로로 이어진 풍선은 타이머를 공유한다 (가장 빠른 퓨즈로 동기화)
+    #[test]
+    fn linked_balloons_share_fuse_timer() {
+        let mut g = setup();
+        for y in 0..MAP_H as i32 {
+            for x in 0..MAP_W as i32 {
+                g.map.set_tile(x, y, Tile::Empty);
+            }
+        }
+        g.players[0].x = 10.5;
+        g.players[0].y = 10.5;
+        g.players[1].x = 13.5;
+        g.players[1].y = 11.5;
+        // A: 퓨즈 1.0 남음, B: 방금 설치(3.0) — 서로 사거리 안
+        g.balloons.push(Balloon { x: 3, y: 1, owner: 0, fuse: 1.0, range: 2, walkthrough: vec![] });
+        g.balloons.push(Balloon { x: 4, y: 1, owner: 0, fuse: 3.0, range: 2, walkthrough: vec![] });
+        g.players[0].balloons_used = 2;
+        g.players[0].max_balloons = 3;
+        g.tick();
+        // 한 틱 뒤 두 퓨즈가 같아야 함 (B가 A의 타이머로 끌려옴)
+        assert!(
+            (g.balloons[0].fuse - g.balloons[1].fuse).abs() < 1e-6,
+            "경로로 이어진 풍선의 타이머가 같이 돌아야 함: {} vs {}",
+            g.balloons[0].fuse,
+            g.balloons[1].fuse
+        );
+        assert!(g.balloons[1].fuse < 1.0, "나중 풍선이 빠른 타이머로 동기화");
+    }
+
+    /// 비대칭 사거리: A(사거리 1)는 B에 못 닿지만 B(사거리 5)가 A에 닿으면 — 링크됨
+    #[test]
+    fn asymmetric_range_still_links_timers() {
+        let mut g = setup();
+        for y in 0..MAP_H as i32 {
+            for x in 0..MAP_W as i32 {
+                g.map.set_tile(x, y, Tile::Empty);
+            }
+        }
+        g.players[0].x = 10.5;
+        g.players[0].y = 10.5;
+        g.players[1].x = 13.5;
+        g.players[1].y = 11.5;
+        g.balloons.push(Balloon { x: 1, y: 1, owner: 0, fuse: 0.5, range: 1, walkthrough: vec![] });
+        g.balloons.push(Balloon { x: 4, y: 1, owner: 0, fuse: 3.0, range: 5, walkthrough: vec![] });
+        g.players[0].balloons_used = 2;
+        g.players[0].max_balloons = 3;
+        // 0.5초 + 여유 → 둘 다 함께 터져 있어야 함 (예전엔 B가 2.5초 더 살았음)
+        tick_n(&mut g, 45);
+        assert!(g.balloons.is_empty(), "비대칭이라도 경로가 닿으면 함께 폭발");
+    }
+
+    /// 사이에 소프트 블록이 있으면 링크되지 않음
+    #[test]
+    fn blocked_path_does_not_link_timers() {
+        let mut g = setup();
+        for y in 0..MAP_H as i32 {
+            for x in 0..MAP_W as i32 {
+                g.map.set_tile(x, y, Tile::Empty);
+            }
+        }
+        g.map.set_tile(4, 1, Tile::Soft); // A와 B 사이 차단
+        g.players[0].x = 10.5;
+        g.players[0].y = 10.5;
+        g.players[1].x = 13.5;
+        g.players[1].y = 11.5;
+        g.balloons.push(Balloon { x: 3, y: 1, owner: 0, fuse: 1.0, range: 3, walkthrough: vec![] });
+        g.balloons.push(Balloon { x: 5, y: 1, owner: 0, fuse: 3.0, range: 3, walkthrough: vec![] });
+        g.players[0].balloons_used = 2;
+        g.players[0].max_balloons = 3;
+        g.tick();
+        assert!(
+            (g.balloons[0].fuse - g.balloons[1].fuse).abs() > 1.0,
+            "블록으로 막힌 경로는 타이머 비동기 유지"
+        );
     }
 
     /// 실제 설치 경로로 연쇄 검증: 먼저 놓은 풍선이 터질 때 사거리 안의

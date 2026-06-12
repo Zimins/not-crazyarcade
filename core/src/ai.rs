@@ -154,10 +154,45 @@ fn escape_step(g: &Game, pid: u32, sx: i32, sy: i32, danger: &[f32], speed: f32)
     best.map(|(_, step)| step)
 }
 
-/// (cx,cy)에 풍선을 놓았다고 가정할 때 그 자리에서 탈출로가 있는지
+/// (bx,by) 풍선의 십자(range)가 (tx,ty)를 덮는지 — 블록·다른 풍선에 막힘
+fn cross_covers(g: &Game, bx: i32, by: i32, range: u32, tx: i32, ty: i32) -> bool {
+    if (bx != tx && by != ty) || (bx == tx && by == ty) {
+        return false;
+    }
+    if (tx - bx).abs() + (ty - by).abs() > range as i32 {
+        return false;
+    }
+    let (dx, dy) = ((tx - bx).signum(), (ty - by).signum());
+    let (mut cx, mut cy) = (bx, by);
+    loop {
+        cx += dx;
+        cy += dy;
+        if cx == tx && cy == ty {
+            return true;
+        }
+        if g.map.tile(cx, cy) != Tile::Empty {
+            return false;
+        }
+        if g.balloons.iter().any(|b| b.x == cx && b.y == cy) {
+            return false;
+        }
+    }
+}
+
+/// (cx,cy)에 풍선을 놓았다고 가정할 때 그 자리에서 탈출로가 있는지.
+/// 경로로 이어지는 기존 풍선이 있으면 타이머가 동기화되므로(코어 규칙)
+/// 새 풍선의 실효 퓨즈를 그 최소값으로 가정한다 — 봇의 자폭 방지.
 fn can_place_at(g: &Game, pid: u32, range: u32, speed: f32, cx: i32, cy: i32, danger: &[f32]) -> bool {
+    let mut fuse = BALLOON_FUSE;
+    for b in &g.balloons {
+        let linked = cross_covers(g, cx, cy, range, b.x, b.y)
+            || cross_covers(g, b.x, b.y, b.range, cx, cy);
+        if linked && b.fuse < fuse {
+            fuse = b.fuse;
+        }
+    }
     let mut danger2 = danger.to_vec();
-    mark_cross(g, &mut danger2, cx, cy, range, BALLOON_FUSE);
+    mark_cross(g, &mut danger2, cx, cy, range, fuse);
     escape_step(g, pid, cx, cy, &danger2, speed).is_some()
 }
 
