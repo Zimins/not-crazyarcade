@@ -1,5 +1,13 @@
 # Cloudflare Pages 헤더 설정
 # 해시 붙은 vite 번들만 immutable, 해시 없는 생성 에셋은 짧은 캐시
+
+# HTML 엔트리는 항상 재검증 — 새 배포의 최신 번들을 즉시 받도록(특히 모바일 Safari
+# 가 구버전 index.html을 캐시해 옛 JS를 물고 있는 것을 방지)
+/
+  Cache-Control: no-cache
+/index.html
+  Cache-Control: no-cache
+
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 

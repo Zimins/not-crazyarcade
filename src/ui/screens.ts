@@ -342,6 +342,19 @@ export function lobbyScreen(opts: {
 
   root.append(solo, online);
   void refresh();
+
+  // 로비에 머무는 동안 방 목록을 주기적으로 갱신 — 새로 만든 방이 새로고침 없이 바로 보이도록.
+  // 화면을 떠나면(swapScreen이 app을 비워 root가 분리됨) 자동으로 멈춘다.
+  const poll = setInterval(() => {
+    if (!root.isConnected) {
+      clearInterval(poll);
+      return;
+    }
+    void opts.onRefresh().then((rooms) => {
+      if (root.isConnected) renderList(rooms);
+    });
+  }, 4000);
+
   return root;
 }
 
