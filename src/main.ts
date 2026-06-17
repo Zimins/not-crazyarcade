@@ -510,18 +510,22 @@ function startNetMatch(
       conn.sendInput(bits);
     }
 
-    // 프레임 소비: 60Hz 페이스 + 밀리면 따라잡기
+    // 프레임 소비: 60Hz 페이스 + 밀리면 점진 따라잡기
     accumulator += frameDt;
-    let want = Math.floor(accumulator / TICK_DT);
+    const baseWant = Math.floor(accumulator / TICK_DT);
+    // 큐가 밀려도 한 번에 몰아 소화(순간이동)하지 않고 매 프레임 조금씩만 더 따라잡는다.
+    // 남는 불균일은 렌더 스무딩이 흡수해 캐릭터가 부드럽게 이동한다.
+    let extra = 0;
     if (tickQueue.length > NET_CATCHUP_THRESHOLD) {
-      want = Math.max(want, tickQueue.length - 3); // 지연 스파이크 → 3틱 버퍼만 남기고 소화
+      extra = 1 + Math.floor((tickQueue.length - NET_CATCHUP_THRESHOLD) / 8);
     }
     let consumed = 0;
-    while (consumed < want && tickQueue.length > 0) {
+    while (consumed < baseWant + extra && tickQueue.length > 0) {
       applyTick(tickQueue.shift()!);
       consumed++;
     }
-    accumulator = Math.min(accumulator - consumed * TICK_DT, TICK_DT * 2);
+    // 정상 페이스(baseWant)만큼만 시간을 차감 — 따라잡기분(extra)은 시간 압축으로 흡수
+    accumulator = Math.max(0, Math.min(accumulator - Math.min(consumed, baseWant) * TICK_DT, TICK_DT * 2));
 
     const snap = parseSnapshot(session.snapshot());
     handleSfxEvents(snap.events);

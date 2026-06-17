@@ -6,6 +6,7 @@ import {
   Phase,
   PlayerState,
   type GameEvent,
+  type PlayerView,
   type Snapshot,
 } from "../game/snapshot";
 
@@ -14,6 +15,11 @@ export const MAP_W = 15;
 export const MAP_H = 13;
 export const BOARD_W = MAP_W * TILE; // 480
 export const BOARD_H = MAP_H * TILE; // 416
+
+/** 플레이어 위치 스무딩 시정수(초) — 락스텝 틱이 네트워크 지터로 불균일해도 화면은 부드럽게 */
+const SMOOTH_TAU = 0.045;
+/** 이 거리²(타일²) 이상 벌어지면 스무딩 없이 즉시 스냅 (리스폰/텔레포트/큰 catch-up) */
+const SNAP_DIST2 = 1.0;
 
 const THEMES = ["forest", "factory", "ice"] as const;
 
@@ -63,6 +69,8 @@ export class Renderer {
   private ctx: CanvasRenderingContext2D;
   private fx: FxInstance[] = [];
   private deathAnims = new Map<number, DeathAnim>();
+  /** 플레이어별 화면 표시 위치 — 시뮬 위치로 부드럽게 수렴(스무딩) */
+  private renderPos = new Map<number, { x: number; y: number }>();
   private time = 0;
   private onResize = () => this.applyScale();
 
@@ -206,12 +214,36 @@ export class Renderer {
     }
   }
 
+  /** 시뮬 위치로 부드럽게 수렴하는 화면 표시 위치. 큰 점프(리스폰 등)는 즉시 스냅. */
+  private smoothPlayer(p: PlayerView, dt: number): { x: number; y: number } {
+    let rp = this.renderPos.get(p.id);
+    if (!rp) {
+      rp = { x: p.x, y: p.y };
+      this.renderPos.set(p.id, rp);
+      return rp;
+    }
+    const dx = p.x - rp.x;
+    const dy = p.y - rp.y;
+    if (dx * dx + dy * dy > SNAP_DIST2) {
+      rp.x = p.x;
+      rp.y = p.y;
+    } else {
+      const k = 1 - Math.exp(-dt / SMOOTH_TAU); // 프레임레이트 독립 지수 보간
+      rp.x += dx * k;
+      rp.y += dy * k;
+    }
+    return rp;
+  }
+
   private drawPlayers(snap: Snapshot, dt: number): void {
+    // 위치 스무딩: 락스텝 틱이 지터로 불균일하게 적용돼도 화면 위치는 부드럽게 따라간다.
+    const drawn = snap.players.map((p) => {
+      const s = this.smoothPlayer(p, dt);
+      return { p, px: s.x * TILE, py: s.y * TILE };
+    });
     // y 정렬로 겹침 자연스럽게
-    const sorted = [...snap.players].sort((a, b) => a.y - b.y);
-    for (const p of sorted) {
-      const px = p.x * TILE;
-      const py = p.y * TILE;
+    drawn.sort((a, b) => a.py - b.py);
+    for (const { p, px, py } of drawn) {
       const charBase = `char${p.charType}`;
 
       if (p.state === PlayerState.Dead) {
@@ -282,6 +314,7 @@ export class Renderer {
   reset(): void {
     this.fx = [];
     this.deathAnims.clear();
+    this.renderPos.clear();
     this.time = 0;
   }
 }
