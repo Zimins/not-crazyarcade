@@ -487,6 +487,9 @@ export function gameScreen(atlases: Atlases): HudRefs {
 
   const hud = el("div", "hud");
   const timer = el("div", "timer", "3:00");
+  // 세로 모드 전용 토글 (CSS로 가로에선 숨김) — 스코어/참가자/스탯 오버레이 여닫기
+  const hudToggle = el("button", "hud-toggle", "≡");
+  hudToggle.addEventListener("click", () => root.classList.toggle("hud-open"));
   const playersBox = el("div", "players");
   const stats = el("div", "stats");
 
@@ -508,7 +511,11 @@ export function gameScreen(atlases: Atlases): HudRefs {
     stats.append(stat);
   }
 
-  hud.append(timer, playersBox, stats);
+  // players + stats를 한 패널로 묶어 세로 모드에서 토글 오버레이로 띄운다
+  // (가로 모드에서는 display:contents로 투명 래퍼 — 기존 우측 패널 레이아웃 유지)
+  const hudPanel = el("div", "hud-panel");
+  hudPanel.append(playersBox, stats);
+  hud.append(timer, hudToggle, hudPanel);
   root.append(boardWrap, hud);
 
   const slotEls: { root: HTMLElement; dot: HTMLElement; name: HTMLElement; kills: HTMLElement }[] = [];

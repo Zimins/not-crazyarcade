@@ -27,7 +27,6 @@ import { restoreSession, guestLogin, currentUser, recordMatch } from "./auth/cli
 import {
   isTouchDevice,
   mountTouchControls,
-  mountRotateOverlay,
   preventZoomGestures,
   tryEnterLandscape,
 } from "./ui/touch";
@@ -591,7 +590,6 @@ async function boot(): Promise<void> {
   showMessage("물풍선에 물 채우는 중...");
   await Promise.all([initWasm(), loadAllAtlases().then((a) => (atlases = a)), restoreSession()]);
   mountTopbar();
-  mountRotateOverlay();
   if (isTouchDevice()) preventZoomGestures();
   gotoTitle();
 }
