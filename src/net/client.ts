@@ -31,6 +31,8 @@ export interface StartInfo {
   seed: string;
   mapId: number;
   players: RoomPlayer[];
+  /** 이 클라이언트의 슬롯 — start 메시지가 직접 싣고 와 room 수신 여부와 무관하게 진입 가능 */
+  you: number;
 }
 
 export interface FrameBatch {
@@ -66,9 +68,14 @@ export interface RoomCallbacks {
   onClose?: (reason: string) => void;
 }
 
+/** heartbeat 주기(ms). 배포(Cloudflare 엣지/NAT/프록시)에서 idle WebSocket이
+ *  조용히 끊기는 것을 막는다 — 대기실은 입력이 없어 완전 idle이므로 필수. */
+const HEARTBEAT_MS = 20000;
+
 export class RoomConnection {
   private ws: WebSocket | null = null;
   private closedByUs = false;
+  private heartbeat: ReturnType<typeof setInterval> | null = null;
   callbacks: RoomCallbacks = {};
 
   connect(code: string, nickname: string, charType: number): Promise<void> {
@@ -83,6 +90,7 @@ export class RoomConnection {
 
       ws.onopen = () => {
         opened = true;
+        this.startHeartbeat();
         resolve();
       };
       ws.onmessage = (ev) => {
@@ -110,6 +118,7 @@ export class RoomConnection {
         }
       };
       ws.onclose = () => {
+        this.stopHeartbeat();
         if (!opened) reject(new Error("방 접속 실패 (정원 초과 또는 게임 진행 중)"));
         else if (!this.closedByUs) this.callbacks.onClose?.("연결이 끊어졌습니다");
       };
@@ -117,6 +126,18 @@ export class RoomConnection {
         if (!opened) reject(new Error("방 접속 실패"));
       };
     });
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat();
+    this.heartbeat = setInterval(() => this.send({ t: "ping" }), HEARTBEAT_MS);
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeat !== null) {
+      clearInterval(this.heartbeat);
+      this.heartbeat = null;
+    }
   }
 
   private send(msg: unknown): void {
@@ -143,6 +164,7 @@ export class RoomConnection {
 
   close(): void {
     this.closedByUs = true;
+    this.stopHeartbeat();
     this.ws?.close();
     this.ws = null;
   }

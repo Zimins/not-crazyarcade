@@ -3,6 +3,13 @@
 // 넷코드: 서버는 시뮬레이션을 돌리지 않는다. 60Hz 틱 클록의 소유자로서
 // 모든 플레이어의 현재 입력을 20Hz 배치(배치당 3틱)로 브로드캐스트하면,
 // 결정적 WASM 코어를 가진 각 클라이언트가 동일한 시뮬레이션을 재생한다.
+//
+// WebSocket은 Hibernation API(state.acceptWebSocket)로 받는다 — 연결을 요청
+// 컨텍스트가 아니라 DO 인스턴스에 영구 소속시켜 다른 요청/이벤트에서 send해도
+// 안전하다. non-hibernation server.accept()는 배포 환경(실제 Cloudflare)에서
+// WS를 accept한 요청이 끝난 뒤 다른 연결의 broadcast가 그 WS에 send하면
+// "Network connection lost"로 깨진다(두 번째 입장자부터 연결 실패). 로컬
+// wrangler dev는 단일 프로세스라 이를 관대하게 처리해 재현되지 않았다.
 
 import type { Env } from "./session";
 
@@ -13,14 +20,12 @@ const MAX_CHAR_TYPE = 7;
 const BATCH_MS = 50;
 const TICKS_PER_BATCH = 3;
 
-interface Conn {
-  ws: WebSocket;
+/** WebSocket attachment에 저장하는 연결 메타데이터 — hibernation 후에도 보존된다 */
+interface ConnMeta {
   slot: number; // 0..5 (스폰/팀 슬롯)
   nickname: string;
   charType: number;
-  /** 게임 중 현재 입력 비트마스크 */
-  input: number;
-  /** 시작 시점의 게임 플레이어 인덱스 (입력 프레임 배열 순서), 게임 미참여 시 -1 */
+  /** 시작 시점의 게임 플레이어 인덱스(입력 프레임 배열 순서), 게임 미참여 시 -1 */
   gameIdx: number;
 }
 
@@ -31,7 +36,6 @@ interface RoomMeta {
 
 export class RoomDO {
   private meta: RoomMeta | null = null;
-  private conns: Conn[] = [];
   private status: "waiting" | "playing" = "waiting";
   private mapId = 0;
   private tickNo = 0;
@@ -44,7 +48,22 @@ export class RoomDO {
   ) {
     void this.state.blockConcurrencyWhile(async () => {
       this.meta = (await this.state.storage.get<RoomMeta>("meta")) ?? null;
+      // 대기실에서 hibernate됐다 깨어나도 맵 선택을 잃지 않도록 storage에 보존
+      this.mapId = (await this.state.storage.get<number>("mapId")) ?? 0;
     });
+    // heartbeat: 클라 {t:"ping"}에 DO를 깨우지 않고 자동 {t:"pong"} 응답
+    // (idle 연결 유지 + hibernation 비용 절감)
+    this.state.setWebSocketAutoResponse(
+      new WebSocketRequestResponsePair(JSON.stringify({ t: "ping" }), JSON.stringify({ t: "pong" }))
+    );
+  }
+
+  /** 현재 연결된 WebSocket 목록 (hibernation: DO 인스턴스에 영구 소속) */
+  private sockets(): WebSocket[] {
+    return this.state.getWebSockets();
+  }
+  private metaOf(ws: WebSocket): ConnMeta {
+    return ws.deserializeAttachment() as ConnMeta;
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -69,28 +88,25 @@ export class RoomDO {
       if (this.status === "playing") {
         return new Response("게임 진행 중", { status: 409 });
       }
-      if (this.conns.length >= MAX_PLAYERS) {
+
+      const existing = this.sockets();
+      if (existing.length >= MAX_PLAYERS) {
         return new Response("정원 초과", { status: 409 });
       }
 
       const nickname = (url.searchParams.get("nick") ?? "물풍선").slice(0, 12);
       const charType = Math.min(MAX_CHAR_TYPE, Math.max(0, Number(url.searchParams.get("char")) || 0));
 
-      const pair = new WebSocketPair();
-      const [client, server] = Object.values(pair);
-      server.accept();
-
       // 비어 있는 가장 낮은 슬롯 배정
-      const used = new Set(this.conns.map((c) => c.slot));
+      const used = new Set(existing.map((ws) => this.metaOf(ws).slot));
       let slot = 0;
       while (used.has(slot)) slot++;
 
-      const conn: Conn = { ws: server, slot, nickname, charType, input: 0, gameIdx: -1 };
-      this.conns.push(conn);
-
-      server.addEventListener("message", (ev) => this.onMessage(conn, ev));
-      server.addEventListener("close", () => this.onLeave(conn));
-      server.addEventListener("error", () => this.onLeave(conn));
+      const pair = new WebSocketPair();
+      const [client, server] = Object.values(pair);
+      const meta: ConnMeta = { slot, nickname, charType, gameIdx: -1 };
+      server.serializeAttachment(meta);
+      this.state.acceptWebSocket(server);
 
       this.broadcastRoom();
       void this.reportLobby();
@@ -100,41 +116,51 @@ export class RoomDO {
     return new Response("not found", { status: 404 });
   }
 
-  // ── 메시지 처리 ────────────────────────────────────────
-  private onMessage(conn: Conn, ev: MessageEvent): void {
+  // ── Hibernation WebSocket 핸들러 ───────────────────────
+  webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): void {
     let msg: { t?: string; v?: unknown };
     try {
-      msg = JSON.parse(typeof ev.data === "string" ? ev.data : "");
+      msg = JSON.parse(typeof message === "string" ? message : "");
     } catch {
       return;
     }
+    const meta = this.metaOf(ws);
     switch (msg.t) {
       case "char":
         if (this.status === "waiting") {
-          conn.charType = Math.min(MAX_CHAR_TYPE, Math.max(0, Number(msg.v) || 0));
+          meta.charType = Math.min(MAX_CHAR_TYPE, Math.max(0, Number(msg.v) || 0));
+          ws.serializeAttachment(meta);
           this.broadcastRoom();
         }
         break;
       case "map":
-        if (this.status === "waiting" && this.isHost(conn)) {
+        if (this.status === "waiting" && this.isHost(meta)) {
           this.mapId = Math.min(2, Math.max(0, Number(msg.v) || 0));
+          void this.state.storage.put("mapId", this.mapId);
           this.broadcastRoom();
         }
         break;
       case "start":
-        if (this.status === "waiting" && this.isHost(conn) && this.conns.length >= 2) {
+        if (this.status === "waiting" && this.isHost(meta) && this.sockets().length >= 2) {
           this.startGame();
         }
         break;
       case "input":
-        if (this.status === "playing" && conn.gameIdx >= 0) {
-          conn.input = Number(msg.v) & 31;
-          this.gameInputs[conn.gameIdx] = conn.input;
+        if (this.status === "playing" && meta.gameIdx >= 0) {
+          this.gameInputs[meta.gameIdx] = Number(msg.v) & 31;
+        }
+        break;
+      case "ping":
+        // 보통은 setWebSocketAutoResponse가 처리하지만, 형식이 다른 ping도 안전하게 응답
+        try {
+          ws.send(JSON.stringify({ t: "pong" }));
+        } catch {
+          /* 닫힌 소켓은 close 핸들러가 정리 */
         }
         break;
       case "result":
         // 호스트가 라운드 종료 보고 (결정적 시뮬이라 모든 클라 동일 결과)
-        if (this.status === "playing" && this.isHost(conn)) {
+        if (this.status === "playing" && this.isHost(meta)) {
           this.endGame(Number(msg.v));
         }
         break;
@@ -143,26 +169,28 @@ export class RoomDO {
     }
   }
 
-  private onLeave(conn: Conn): void {
-    const idx = this.conns.indexOf(conn);
-    if (idx < 0) return;
-    this.conns.splice(idx, 1);
+  webSocketClose(ws: WebSocket): void {
+    this.onLeave(ws);
+  }
+  webSocketError(ws: WebSocket): void {
+    this.onLeave(ws);
+  }
+
+  private onLeave(ws: WebSocket): void {
     try {
-      conn.ws.close();
+      ws.close();
     } catch {
       /* 이미 닫힘 */
     }
+    const meta = this.metaOf(ws);
+    const remaining = this.sockets().filter((s) => s !== ws);
     if (this.status === "playing") {
       // 게임 중 이탈: 해당 슬롯 입력을 0으로 고정 (캐릭터는 제자리에 남음)
-      if (conn.gameIdx >= 0) this.gameInputs[conn.gameIdx] = 0;
-      if (this.conns.length === 0) {
+      if (meta.gameIdx >= 0) this.gameInputs[meta.gameIdx] = 0;
+      // 모두 나갔거나 게임 참가자가 전부 빠지면 대기 상태로 복귀
+      if (remaining.length === 0 || remaining.every((s) => this.metaOf(s).gameIdx < 0)) {
         this.stopBatchLoop();
         this.status = "waiting";
-      } else if (this.conns.every((c) => c.gameIdx < 0)) {
-        // 게임 참가자가 전부 나감 (관전자만 남는 경우는 없지만 방어)
-        this.stopBatchLoop();
-        this.status = "waiting";
-        this.broadcastRoom();
       }
     }
     this.broadcastRoom();
@@ -177,16 +205,25 @@ export class RoomDO {
     const s = crypto.getRandomValues(new Uint32Array(2));
     const seed = ((BigInt(s[0]) << 32n) | BigInt(s[1])).toString();
 
-    const players = [...this.conns]
-      .sort((a, b) => a.slot - b.slot)
-      .map((c, i) => {
-        c.gameIdx = i;
-        c.input = 0;
-        return { slot: c.slot, nickname: c.nickname, charType: c.charType };
-      });
+    const ordered = [...this.sockets()].sort((a, b) => this.metaOf(a).slot - this.metaOf(b).slot);
+    const players = ordered.map((ws, i) => {
+      const m = this.metaOf(ws);
+      m.gameIdx = i;
+      ws.serializeAttachment(m);
+      return { slot: m.slot, nickname: m.nickname, charType: m.charType };
+    });
     this.gameInputs = players.map(() => 0);
 
-    this.broadcast({ t: "start", seed, mapId: this.mapId, players });
+    // start는 각 클라이언트에 자신의 슬롯(you)을 직접 실어 보낸다 — 입장 직후 room을
+    // 놓친 클라이언트도 room 재수신 없이 바로 게임에 진입할 수 있도록(대기실 갇힘 방지).
+    const mapId = this.mapId;
+    for (const ws of ordered) {
+      try {
+        ws.send(JSON.stringify({ t: "start", seed, mapId, players, you: this.metaOf(ws).slot }));
+      } catch {
+        /* 닫힌 소켓은 close 핸들러가 정리 */
+      }
+    }
     void this.reportLobby();
 
     this.batchTimer = setInterval(() => {
@@ -204,9 +241,10 @@ export class RoomDO {
   private endGame(winnerTeam: number): void {
     this.stopBatchLoop();
     this.status = "waiting";
-    for (const c of this.conns) {
-      c.gameIdx = -1;
-      c.input = 0;
+    for (const ws of this.sockets()) {
+      const m = this.metaOf(ws);
+      m.gameIdx = -1;
+      ws.serializeAttachment(m);
     }
     this.broadcast({ t: "end", winnerTeam });
     this.broadcastRoom();
@@ -221,16 +259,17 @@ export class RoomDO {
   }
 
   // ── 유틸 ───────────────────────────────────────────────
-  private isHost(conn: Conn): boolean {
+  private isHost(meta: ConnMeta): boolean {
     // 가장 낮은 슬롯이 호스트
-    return this.conns.length > 0 && conn.slot === Math.min(...this.conns.map((c) => c.slot));
+    const slots = this.sockets().map((s) => this.metaOf(s).slot);
+    return slots.length > 0 && meta.slot === Math.min(...slots);
   }
 
   private broadcast(msg: unknown): void {
     const data = JSON.stringify(msg);
-    for (const c of this.conns) {
+    for (const ws of this.sockets()) {
       try {
-        c.ws.send(data);
+        ws.send(data);
       } catch {
         /* 닫힌 소켓은 close 핸들러가 정리 */
       }
@@ -239,18 +278,20 @@ export class RoomDO {
 
   private broadcastRoom(): void {
     if (!this.meta) return;
-    const hostSlot = this.conns.length > 0 ? Math.min(...this.conns.map((c) => c.slot)) : -1;
-    const players = [...this.conns]
+    const sockets = this.sockets();
+    const metas = sockets.map((ws) => this.metaOf(ws));
+    const hostSlot = metas.length > 0 ? Math.min(...metas.map((m) => m.slot)) : -1;
+    const players = [...metas]
       .sort((a, b) => a.slot - b.slot)
-      .map((c) => ({ slot: c.slot, nickname: c.nickname, charType: c.charType }));
-    for (const c of this.conns) {
+      .map((m) => ({ slot: m.slot, nickname: m.nickname, charType: m.charType }));
+    for (const ws of sockets) {
       try {
-        c.ws.send(
+        ws.send(
           JSON.stringify({
             t: "room",
             code: this.meta.code,
             name: this.meta.name,
-            you: c.slot,
+            you: this.metaOf(ws).slot,
             host: hostSlot,
             status: this.status,
             mapId: this.mapId,
@@ -272,7 +313,7 @@ export class RoomDO {
         body: JSON.stringify({
           code: this.meta.code,
           name: this.meta.name,
-          count: this.conns.length,
+          count: this.sockets().length,
           max: MAX_PLAYERS,
           status: this.status,
         }),

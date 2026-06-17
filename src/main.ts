@@ -379,8 +379,6 @@ async function enterRoom(code: string): Promise<void> {
   let inGame = false;
   /** 진행 중(또는 결과 화면) 매치의 정리 함수 — 새 start 수신 시 강제 정리용 */
   let teardown: (() => void) | null = null;
-  /** room 메시지보다 start가 먼저 도착한 경우의 버퍼 */
-  let pendingStart: StartInfo | null = null;
 
   const refs = roomScreen(atlases, {
     onChar: (v) => conn.sendChar(v),
@@ -400,26 +398,18 @@ async function enterRoom(code: string): Promise<void> {
   };
 
   const beginMatch = (info: StartInfo): void => {
-    if (!lastRoom) {
-      pendingStart = info; // 슬롯 정보(you)가 아직 없음 — room 수신 후 진입
-      return;
-    }
-    // 이전 판 결과 화면에 머물러 있어도 시작 이벤트를 버리지 않는다:
-    // 기존 매치를 정리하고 새 매치로 강제 진입
+    // start 메시지가 내 슬롯(info.you)을 직접 싣고 오므로 room 수신 여부와 무관하게 진입한다.
+    // (입장 직후 room 유실 등으로 lastRoom이 비어 있어도 대기실에 갇히지 않게)
+    // 이전 판 결과 화면에 머물러 있어도 기존 매치를 정리하고 새 매치로 강제 진입한다.
     teardown?.();
     inGame = true;
-    teardown = startNetMatch(conn, info, lastRoom.you, backToRoom);
+    teardown = startNetMatch(conn, info, info.you, backToRoom);
   };
 
   conn.callbacks = {
     onRoom: (room) => {
       lastRoom = room;
       if (!inGame) refs.update(room);
-      if (pendingStart) {
-        const info = pendingStart;
-        pendingStart = null;
-        beginMatch(info);
-      }
     },
     onStart: beginMatch,
     onClose: () => {
