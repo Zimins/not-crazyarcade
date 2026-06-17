@@ -29,6 +29,7 @@ import {
   mountTouchControls,
   preventZoomGestures,
   tryEnterLandscape,
+  type TouchControls,
 } from "./ui/touch";
 import {
   fetchRooms,
@@ -243,9 +244,9 @@ function startMatch(setup: MatchSetup): void {
   input.attach();
 
   document.body.classList.add("in-game");
-  let touchCleanup: (() => void) | null = null;
+  let touchControls: TouchControls | null = null;
   if (isTouchDevice()) {
-    touchCleanup = mountTouchControls(hud.root, input);
+    touchControls = mountTouchControls(hud.root, input);
     void tryEnterLandscape();
   }
 
@@ -267,7 +268,7 @@ function startMatch(setup: MatchSetup): void {
 
   const endMatch = (): void => {
     document.body.classList.remove("in-game");
-    touchCleanup?.();
+    touchControls?.destroy();
     input.detach();
     cancelAnimationFrame(raf);
     renderer.dispose();
@@ -309,6 +310,7 @@ function startMatch(setup: MatchSetup): void {
     if (myDeathElapsed === null && me?.state === PlayerState.Dead) {
       myDeathElapsed = ROUND_TOTAL - snap.timeRemaining;
       myDeathWall = now;
+      touchControls?.setEnabled(false); // 사망: 터치 입력 차단 (결과 버튼만 동작)
     }
 
     if (snap.phase === Phase.Playing && !started) {
@@ -449,9 +451,9 @@ function startNetMatch(
   input.attach();
 
   document.body.classList.add("in-game");
-  let touchCleanup: (() => void) | null = null;
+  let touchControls: TouchControls | null = null;
   if (isTouchDevice()) {
-    touchCleanup = mountTouchControls(hud.root, input);
+    touchControls = mountTouchControls(hud.root, input);
     void tryEnterLandscape();
   }
 
@@ -474,7 +476,7 @@ function startNetMatch(
     if (ended) return;
     ended = true;
     document.body.classList.remove("in-game");
-    touchCleanup?.();
+    touchControls?.destroy();
     input.detach();
     cancelAnimationFrame(raf);
     renderer.dispose();
@@ -543,6 +545,7 @@ function startNetMatch(
     const me = snap.players.find((p) => p.id === session.localPlayerId);
     if (myDeathElapsed === null && me?.state === PlayerState.Dead) {
       myDeathElapsed = ROUND_TOTAL - snap.timeRemaining;
+      touchControls?.setEnabled(false); // 사망: 터치 입력 차단 (결과 버튼만 동작)
     }
 
     if (snap.phase === Phase.RoundOver && !resultShown) {

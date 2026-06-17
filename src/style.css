@@ -255,6 +255,7 @@ canvas.board {
   border: 3px solid var(--line);
   border-radius: 6px;
   background: #000;
+  box-sizing: border-box; /* 보더 포함 — 세로에서 화면 폭 초과 방지 */
 }
 
 .hud {
@@ -440,27 +441,27 @@ canvas.board {
   z-index: 20;
 }
 
-/* 드래그 조이스틱: 왼쪽 영역 터치 시 그 자리에 베이스가 뜬다 */
+/* 고정 조이스틱: 좌하단에 항상 표시, 그 영역을 눌러 끌면 노브가 따라간다 */
 .tc-stickzone {
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 55%;
-  height: 75%;
+  width: 188px;
+  height: 188px;
   pointer-events: auto;
   touch-action: none;
   user-select: none;
 }
 
 .tc-base {
-  display: none;
-  position: fixed;
+  position: absolute;
+  left: max(28px, env(safe-area-inset-left));
+  bottom: max(28px, env(safe-area-inset-bottom));
   width: 124px;
   height: 124px;
   border-radius: 50%;
-  background: rgba(34, 28, 68, 0.4);
+  background: rgba(34, 28, 68, 0.45);
   border: 2px solid rgba(127, 212, 255, 0.5);
-  transform: translate(-50%, -50%); /* clientX/Y 기준 중앙 정렬 */
   pointer-events: none;
 }
 
@@ -473,7 +474,14 @@ canvas.board {
   border-radius: 50%;
   background: rgba(46, 157, 240, 0.8);
   border: 2px solid #7fd4ff;
-  /* transform은 JS가 드래그 벡터에 따라 설정 */
+  transform: translate(-50%, -50%); /* 기본 중앙 — JS가 드래그 벡터에 따라 이동 */
+}
+
+/* 사망 등으로 비활성화 — 결과(재시작/나가기) 버튼만 누를 수 있게 */
+.touch-controls.disabled .tc-stickzone,
+.touch-controls.disabled .tc-action {
+  pointer-events: none;
+  opacity: 0.35;
 }
 
 .tc-action {

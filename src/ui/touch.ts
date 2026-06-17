@@ -24,17 +24,22 @@ export async function tryEnterLandscape(): Promise<void> {
 const STICK_MAX_R = 48;
 const STICK_DEAD = 12;
 
+export interface TouchControls {
+  /** 컨트롤 제거 (매치 종료) */
+  destroy: () => void;
+  /** 입력 활성/비활성 — 사망 시 false로 막아 결과(재시작/나가기) 버튼만 누르도록 한다 */
+  setEnabled: (on: boolean) => void;
+}
+
 /**
- * 터치 컨트롤을 root에 장착. 반환값은 해제 함수.
- * 왼쪽 영역 아무 곳이나 누르면 그 자리에 드래그 조이스틱이 생기고,
- * 손가락을 끌어 방향을 정한다(주 축 4방향). 손가락을 떼면 정지.
+ * 터치 컨트롤을 root에 장착. 좌하단에 고정 조이스틱(항상 표시) + 물풍선 버튼.
+ * 조이스틱 영역을 누른 채 끌어 방향을 정한다(주 축 4방향). 떼면 노브가 중앙으로 복귀·정지.
  */
-export function mountTouchControls(root: HTMLElement, input: InputManager): () => void {
+export function mountTouchControls(root: HTMLElement, input: InputManager): TouchControls {
   const wrap = document.createElement("div");
   wrap.className = "touch-controls";
 
-  // ── 드래그 조이스틱 ──
-  // 왼쪽 영역(zone) 터치 → 그 지점에 베이스 표시, 드래그 벡터로 방향 결정
+  // ── 고정 조이스틱 (좌하단 항상 표시) ──
   const zone = document.createElement("div");
   zone.className = "tc-stickzone";
   const base = document.createElement("div");
@@ -45,41 +50,39 @@ export function mountTouchControls(root: HTMLElement, input: InputManager): () =
   zone.append(base);
 
   const setDir = (bit: number): void => input.setVirtualDir(bit);
+  const resetKnob = (): void => {
+    knob.style.transform = "translate(-50%, -50%)";
+  };
 
   let stickId: number | null = null;
-  let originX = 0;
-  let originY = 0;
+
+  // 베이스 중심 기준 드래그 벡터 → 노브 위치 + 방향(주 축 4방향)
+  const updateKnob = (clientX: number, clientY: number): void => {
+    const r = base.getBoundingClientRect();
+    const dx = clientX - (r.left + r.width / 2);
+    const dy = clientY - (r.top + r.height / 2);
+    const dist = Math.hypot(dx, dy);
+    const cl = Math.min(dist, STICK_MAX_R);
+    const a = Math.atan2(dy, dx);
+    knob.style.transform = `translate(calc(-50% + ${Math.cos(a) * cl}px), calc(-50% + ${Math.sin(a) * cl}px))`;
+    if (dist < STICK_DEAD) setDir(0);
+    else setDir(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? IN_RIGHT : IN_LEFT) : dy > 0 ? IN_DOWN : IN_UP);
+  };
 
   zone.addEventListener("pointerdown", (e) => {
     if (stickId !== null) return;
     e.preventDefault();
     stickId = e.pointerId;
     zone.setPointerCapture(e.pointerId);
-    originX = e.clientX;
-    originY = e.clientY;
-    base.style.left = `${originX}px`;
-    base.style.top = `${originY}px`;
-    base.style.display = "block";
-    knob.style.transform = "translate(-50%, -50%)";
-    setDir(0);
+    updateKnob(e.clientX, e.clientY);
   });
   zone.addEventListener("pointermove", (e) => {
-    if (e.pointerId !== stickId) return;
-    const dx = e.clientX - originX;
-    const dy = e.clientY - originY;
-    const dist = Math.hypot(dx, dy);
-    const r = Math.min(dist, STICK_MAX_R);
-    const a = Math.atan2(dy, dx);
-    const kx = Math.cos(a) * r;
-    const ky = Math.sin(a) * r;
-    knob.style.transform = `translate(calc(-50% + ${kx}px), calc(-50% + ${ky}px))`;
-    if (dist < STICK_DEAD) setDir(0);
-    else setDir(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? IN_RIGHT : IN_LEFT) : dy > 0 ? IN_DOWN : IN_UP);
+    if (e.pointerId === stickId) updateKnob(e.clientX, e.clientY);
   });
   const stickRelease = (e: PointerEvent): void => {
     if (e.pointerId !== stickId) return;
     stickId = null;
-    base.style.display = "none";
+    resetKnob();
     setDir(0);
   };
   zone.addEventListener("pointerup", stickRelease);
@@ -108,10 +111,22 @@ export function mountTouchControls(root: HTMLElement, input: InputManager): () =
   wrap.append(zone, action);
   root.append(wrap);
 
-  return () => {
-    wrap.remove();
-    input.setVirtualDir(0);
-    input.setVirtualAction(false);
+  return {
+    destroy: () => {
+      wrap.remove();
+      input.setVirtualDir(0);
+      input.setVirtualAction(false);
+    },
+    setEnabled: (on: boolean) => {
+      wrap.classList.toggle("disabled", !on);
+      if (!on) {
+        stickId = null;
+        resetKnob();
+        action.classList.remove("pressed");
+        input.setVirtualDir(0);
+        input.setVirtualAction(false);
+      }
+    },
   };
 }
 
